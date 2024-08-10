@@ -1,0 +1,588 @@
+#include <stdint.h>
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdio.h>
+#include <string.h>
+
+#include "wifi/capture.h"
+#include "rx.h"
+#include "wire.h"
+#include "log.h"
+#include "ethernet.h"
+#include "esp_log.h"
+#include "wifi/capture.h"
+#include "peers.h"
+#include "frame.h"
+
+#include "esp_log.h"
+
+#define AWDL_SYNC_THRESHOLD 3
+
+int awdl_handle_sync_params_tlv(struct awdl_peer *src, const struct buf *val, struct awdl_state *state, uint64_t now) {
+	uint16_t aw_counter_master;
+	uint16_t time_to_next_aw_master;
+	int64_t sync_err_tu;
+
+	if (!awdl_election_is_sync_master(&state->election, &src->addr)) {
+		ESP_LOGW("awdl", "awdl_handle_sync_params_tlv: ignore sync params from nodes that are not our master");
+		return RX_IGNORE; /* ignore sync params from nodes that are not our master */
+	}
+
+	/* TODO synchronization could be more accurate */
+	// TAW = tAW · 1024 − (TTx,PHY − TTx,Target) + tair + TRx.
+
+	READ_LE16(val, 1, &time_to_next_aw_master);
+	READ_LE16(val, 29, &aw_counter_master);
+
+	state->sync.meas_total++;
+	sync_err_tu = awdl_sync_error_tu(now, time_to_next_aw_master, aw_counter_master, &state->sync);
+	awdl_sync_update_last(now, time_to_next_aw_master, aw_counter_master, &state->sync);
+	if (sync_err_tu > AWDL_SYNC_THRESHOLD || sync_err_tu < -AWDL_SYNC_THRESHOLD) {
+		state->sync.meas_err++;
+		ESP_LOGE("awdl", "Sync error %lld TU (%.02f %%)", sync_err_tu, state->sync.meas_err * 100.0 / state->sync.meas_total);
+	} /*else {
+		ESP_LOGI("awdl", "Sync error %lld TU (%.02f %%)", sync_err_tu, (state->sync.meas_total-state->sync.meas_err)*100.0/state->sync.meas_total ); 
+		ESP_LOGI("awdl", "err: %lld, total: %lld, rate %lld", state->sync.meas_err, state->sync.meas_total,(state->sync.meas_total-state->sync.meas_err));
+	}
+	*/
+
+	return RX_OK;
+wire_error:
+	return RX_TOO_SHORT;
+}
+
+int awdl_handle_chanseq_tlv(struct awdl_peer *src, const struct buf *val,
+                            struct awdl_state *state __attribute__((unused))) {
+	uint8_t count;
+	uint8_t encoding;
+	uint8_t duplicate_count;
+	uint8_t step_count;
+	uint16_t fill_channel;
+	struct awdl_chan list[AWDL_CHANSEQ_LENGTH];
+	int size;
+
+	/* read and sanity check, we do not support any other configuration */
+	READ_U8(val, 0, &count);
+	if (count + 1 != AWDL_CHANSEQ_LENGTH)
+		return RX_UNEXPECTED_VALUE;
+	READ_U8(val, 2, &duplicate_count);
+	if (duplicate_count > 0)
+		return RX_UNEXPECTED_VALUE;
+	READ_U8(val, 3, &step_count);
+	if (step_count + 1 != state->sync.presence_mode)
+		return RX_UNEXPECTED_VALUE;
+	READ_LE16(val, 4, &fill_channel);
+	if (fill_channel != 0xffff)
+		return RX_UNEXPECTED_VALUE;
+
+	READ_U8(val, 1, &encoding);
+	size = awdl_chan_encoding_size(encoding);
+	if (size < 1)
+		return RX_UNEXPECTED_VALUE;
+
+	for (int i = 0, offset = 6; i < AWDL_CHANSEQ_LENGTH; i++, offset += size)
+		READ_BYTES_COPY(val, offset, list[i].val, size);
+
+	if (memcmp(src->sequence, list, sizeof(list))) {
+		log_debug("peer %s (%s) changed channel sequence to %d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d",
+		          ether_ntoa(&src->addr), src->name,
+		          awdl_chan_num(list[0], encoding), awdl_chan_num(list[1], encoding),
+		          awdl_chan_num(list[2], encoding), awdl_chan_num(list[3], encoding),
+		          awdl_chan_num(list[4], encoding), awdl_chan_num(list[5], encoding),
+		          awdl_chan_num(list[6], encoding), awdl_chan_num(list[7], encoding),
+		          awdl_chan_num(list[8], encoding), awdl_chan_num(list[9], encoding),
+		          awdl_chan_num(list[10], encoding), awdl_chan_num(list[11], encoding),
+		          awdl_chan_num(list[12], encoding), awdl_chan_num(list[13], encoding),
+		          awdl_chan_num(list[14], encoding), awdl_chan_num(list[15], encoding));
+		memcpy(src->sequence, list, sizeof(list));
+	}
+	return RX_OK;
+
+wire_error:
+	return RX_TOO_SHORT;
+}
+
+int awdl_handle_election_params_tlv(struct awdl_peer *src, const struct buf *val,
+                                    struct awdl_state *state __attribute__((unused))) {
+	uint8_t distance_to_master;
+
+	if (src->supports_v2)
+		return 0; /* if node supports election v2, we ignore v1 advertisements */
+
+	// READ_U8(val, 0, 0); /* ignore flags */
+	// READ_LE16(val, 1, 0); /* TODO ignore ID */
+	READ_U8(val, 3, &distance_to_master);
+	src->election.height = distance_to_master; // READ_U8(val, 3, &src->election.height);
+	// READ_U8(val, 4, 0); /* ignore unknown */
+	READ_ETHER_ADDR(val, 5, &src->election.master_addr);
+	//ESP_LOGE("awdl core", "awdl_handle_election_params_tlv: master_addr: %s", ether_ntoa(&src->election.master_addr));
+	READ_LE32(val, 11, &src->election.master_metric);
+	READ_LE32(val, 15, &src->election.self_metric);
+	// READ_LE16(val, 19, 0); /* padding */
+
+	return RX_OK;
+wire_error:
+	return RX_TOO_SHORT;
+}
+
+int awdl_handle_election_params_v2_tlv(struct awdl_peer *src, const struct buf *val,
+                                       struct awdl_state *state __attribute__((unused))) {
+	READ_LE32(val, 16, &src->election.height);
+	READ_ETHER_ADDR(val, 0, &src->election.master_addr);
+	//ESP_LOGE("awdl core", "awdl_handle_election_params_v2_tlv: master_addr: %s", ether_ntoa(&src->election.master_addr));
+	READ_ETHER_ADDR(val, 6, &src->election.sync_addr);
+	READ_LE32(val, 12, &src->election.master_counter);
+	READ_LE32(val, 20, &src->election.master_metric);
+	READ_LE32(val, 24, &src->election.self_metric);
+	// READ_LE32(val, 28, &tlv->unknown); /* ignore unknown */
+	// READ_LE32(val, 32, &tlv->reserved); /* ignore reserved */
+	READ_LE32(val, 36, &src->election.self_counter);
+
+	src->supports_v2 = 1;
+	return RX_OK;
+wire_error:
+	return RX_TOO_SHORT;
+}
+
+int awdl_handle_arpa_tlv(struct awdl_peer *src, const struct buf *val,
+                         struct awdl_state *state __attribute__((unused))) {
+	// READ_U8(val, 0, &flags); /* semantics unclear, ignore */
+	READ_INT_STRING(val, 1, src->name, HOST_NAME_LENGTH_MAX);
+	return RX_OK;
+wire_error:
+	return RX_TOO_SHORT;
+}
+
+int awdl_handle_data_path_state_tlv(struct awdl_peer *src, const struct buf *val,
+                                    struct awdl_state *state __attribute__((unused))) {
+	uint16_t flags;
+	int offset = 0;
+	READ_LE16(val, offset, &flags);
+	offset += 2;
+
+	if (flags & AWDL_DATA_PATH_FLAG_COUNTRY_CODE) {
+		READ_BYTES_COPY(val, offset, (uint8_t *) src->country_code, 3);
+		offset += 3;
+	}
+	if (flags & AWDL_DATA_PATH_FLAG_SOCIAL_CHANNEL_MAP) {
+		READ_LE16(val, offset, NULL /* supported social channels */);
+		offset += 2;
+	}
+	if (flags & AWDL_DATA_PATH_FLAG_INFRA_INFO) {
+		READ_ETHER_ADDR(val, offset, NULL /* BSSID */);
+		offset += 6;
+		READ_LE16(val, offset, NULL /* channel */);
+		offset += 2;
+	}
+	if (flags & AWDL_DATA_PATH_FLAG_INFRA_ADDRESS) {
+		READ_ETHER_ADDR(val, offset, &src->infra_addr);
+		offset += 6;
+	}
+	if (flags & AWDL_DATA_PATH_FLAG_AWDL_ADDRESS) {
+		READ_ETHER_ADDR(val, offset, NULL /* AWDL address */);
+		offset += 6;
+	}
+
+	/* TODO complete parsing */
+	return RX_OK;
+wire_error:
+	return RX_TOO_SHORT;
+}
+
+int awdl_handle_version_tlv(struct awdl_peer *src, const struct buf *val,
+                            struct awdl_state *state __attribute__((unused))) {
+	uint8_t version, devclass;
+	READ_U8(val, 0, &version);
+	READ_U8(val, 1, &devclass);
+    //ESP_LOGI("awdl_handle_version_tlv", "version %i; devclass %i", version, devclass);
+	src->version = version;
+	src->devclass = devclass;
+	return RX_OK;
+wire_error:
+	return RX_TOO_SHORT;
+}
+
+int awdl_handle_tlv(struct awdl_peer *src, uint8_t type, const struct buf *val,
+                    struct awdl_state *state, uint64_t tsft) {
+	//ESP_LOGI("awdl_handle_tlv", "type %s", awdl_tlv_as_str(type));
+	switch (type) {
+		case AWDL_SYNCHRONIZATON_PARAMETERS_TLV:
+			return awdl_handle_sync_params_tlv(src, val, state, tsft);
+		case AWDL_CHAN_SEQ_TLV:
+			return awdl_handle_chanseq_tlv(src, val, state);
+		case AWDL_ELECTION_PARAMETERS_TLV:
+			return awdl_handle_election_params_tlv(src, val, state);
+		case AWDL_ELECTION_PARAMETERS_V2_TLV:
+			return awdl_handle_election_params_v2_tlv(src, val, state);
+		case AWDL_ARPA_TLV:
+			return awdl_handle_arpa_tlv(src, val, state);
+		case AWDL_DATA_PATH_STATE_TLV:
+			return awdl_handle_data_path_state_tlv(src, val, state);
+		case AWDL_VERSION_TLV:
+			return awdl_handle_version_tlv(src, val, state);
+		case AWDL_SYNCTREE_TLV: /* seems to be buggy, not used in our election process */
+			/* fall through */
+		default:
+			//ESP_LOGE("awdl","not handling %s (%u)", awdl_tlv_as_str(type), type);
+			return RX_IGNORE;
+	}
+}
+
+int awdl_parse_action_hdr(const struct buf *frame) {
+	const struct awdl_action *af;
+	int valid;
+
+	READ_BYTES(frame, 0, NULL, sizeof(struct awdl_action));
+
+	af = (const struct awdl_action *) buf_data(frame);
+
+	valid = af->category == IEEE80211_VENDOR_SPECIFIC &&
+	        !memcmp(&af->oui, &AWDL_OUI, sizeof(AWDL_OUI)) &&
+	        af->type == AWDL_TYPE &&
+	        af->version == AWDL_VERSION_COMPAT;
+
+	if (valid && (af->subtype == AWDL_ACTION_PSF || af->subtype == AWDL_ACTION_MIF))
+		return af->subtype;
+
+wire_error:
+	return -1;
+}
+
+int awdl_rx_action(const struct buf *frame, signed char rssi, uint64_t tsft,
+                   const struct ether_addr *src, const struct ether_addr *dst,
+                   struct awdl_state *state) {
+	int len;
+	enum peers_status status;
+	uint8_t tlv_type;
+	uint16_t tlv_len;
+	const uint8_t *tlv_value;
+	struct awdl_peer *peer;
+	int subtype;
+
+	(void) dst; /* TODO ignore destination address for now, could be used to mitigate desynchronization attack */
+
+	subtype = awdl_parse_action_hdr(frame);
+	if (subtype < 0) {
+		ESP_LOGE("owl", "awdl_rx_action: not an action frame");
+		//log_trace("awdl_action: not an action frame"); /* could be block ACK */
+		for (int i=0; i<buf_len(frame); i++) {
+			printf("%02X ", ((uint8_t *)buf_data(frame))[i]);
+		}
+		printf("\n");
+		return RX_IGNORE;
+	}
+	buf_strip(frame, sizeof(struct awdl_action));
+
+	// TODO:
+	//if (state->filter_rssi) {
+	//	status = awdl_peer_get(state->peers.peers, src, NULL);
+	//	if (((status == PEERS_OK) && rssi < state->rssi_threshold + state->rssi_grace) ||
+	//	    ((status == PEERS_MISSING) && rssi < state->rssi_threshold))
+	//		return RX_IGNORE_RSSI;
+	//}
+	state->stats.rx_action++;
+	//ESP_LOGI("owl", "awdl_rx_action: receive %i from %s (rssi %d)", subtype, ether_ntoa(src), rssi);
+	
+	///* Update peer table */
+	status = awdl_peer_add(state->peers.peers, src, tsft, state->peer_cb, state->peer_cb_data);
+	if (status < 0) {
+		ESP_LOGI("awdl_action", "could not add peer: %s (%d)", ether_ntoa(src), status);
+		return RX_IGNORE;
+	}
+	status = awdl_peer_get(state->peers.peers, src, &peer);
+	if (status < 0) {
+		ESP_LOGI("awdl_action", "could not find peer: %s (%d)", ether_ntoa(src), status);
+		return RX_IGNORE; /* FIXME happens sometimes, not sure why */
+	}
+	ESP_LOGD("awdl_action","receive %s from %s (rssi %d)", awdl_frame_as_str(subtype), ether_ntoa(&peer->addr), rssi);
+	while ((len = read_tlv(frame, 0, &tlv_type, &tlv_len, &tlv_value)) > 0) {
+		const struct buf *tlv_buf = buf_new_const(tlv_value, tlv_len);
+		int result = awdl_handle_tlv(peer, tlv_type, tlv_buf, state, tsft);
+		if (state->tlv_cb)
+			state->tlv_cb(peer, tlv_type, tlv_buf, state, state->tlv_cb_data);
+		buf_free(tlv_buf);
+		if (result < 0) {
+			log_warn("awdl_action: parsing error %s", awdl_tlv_as_str(tlv_type));
+			return RX_UNEXPECTED_FORMAT;
+		}
+		buf_strip(frame, len);
+	}
+	if (buf_len(frame) == 1 && buf_data(frame)[0] == 0x00) {
+		buf_strip(frame, 1);
+	}
+
+	if (buf_len(frame) > 0) {
+		ESP_LOGE("awdl_action", "unexpected bytes (%d) at end of frame", buf_len(frame));
+		for (int i=0; i<buf_len(frame); i++) {
+			printf("%02X ", ((uint8_t *)buf_data(frame))[i]);
+		}
+		printf("\n");
+		return RX_UNEXPECTED_FORMAT;
+	}
+
+	if (subtype == AWDL_ACTION_MIF)
+		peer->sent_mif = 1;
+
+	///* update peer info after parsing all TLVs */
+	awdl_peer_add(state->peers.peers, src, tsft, state->peer_cb, state->peer_cb_data);
+
+	return RX_OK;
+}
+
+void awdl_neighbor_add(struct awdl_peer *p, void *_io_stat) {
+	printf("awdl_neighbor_add: ");
+	printf("p->name: %s; ", p->name);
+	printf("country_code: %s\n", p->country_code);
+	// TODO: add to ipv6 neigbor table
+}
+
+void awdl_neighbor_remove(struct awdl_peer *p, void *_io_state) {
+	printf("awdl_neighbor_remove: ");
+	printf("p->name: %s; ", p->name);
+	printf("country_code: %s\n", p->country_code);
+	// TODO: remove to ipv6 neigbor table
+}
+
+int llc_parse(const struct buf *frame, struct llc_hdr *llc) {
+	uint16_t pid; /* to not take pointer of packed llc->pid */
+	READ_U8(frame, 0, &llc->dsap);
+	READ_U8(frame, 1, &llc->ssap);
+	READ_U8(frame, 2, &llc->control);
+	READ_BYTES_COPY(frame, 3, (uint8_t *) &llc->oui, 3);
+	READ_BE16(frame, 6, &pid);
+	llc->pid = pid;
+	return RX_OK;
+wire_error:
+	return RX_TOO_SHORT;
+}
+
+int awdl_valid_llc_header(const struct buf *frame) {
+	struct llc_hdr llc;
+
+	if (llc_parse(frame, &llc) < 0) {
+		log_warn("llc: frame to short");
+		return 0;
+	}
+	printf("llc: dsap %02X, ssap %02X control %02X\n", llc.dsap, llc.ssap, llc.control);  
+	if (llc.dsap != 0xaa || llc.ssap != 0xaa || llc.control != 0x03 ||
+	    llc.pid != AWDL_LLC_PROTOCOL_ID) {
+		log_warn("llc: invalid header (DSAP %04x, SSAP %04x, control %04x, OUI %02x:%02x:%02x, PID %#06x",
+		         llc.dsap, llc.ssap, llc.control,
+		         llc.oui.byte[0], llc.oui.byte[1], llc.oui.byte[2], llc.pid);
+		return 0;
+	}
+	return 1;
+}
+
+int awdl_rx_data(const struct buf *frame, struct buf ***out, const struct ether_addr *src,
+                 const struct ether_addr *dst, struct awdl_state *state) {
+	uint16_t ether_type;
+	int offset = 0;
+
+	ESP_LOGI("awdl_data", "receive from %s", ether_ntoa(src));
+	state->stats.rx_data++;
+
+	//if (awdl_peer_get(state->peers.peers, src, NULL) != PEERS_OK)
+	//	return RX_IGNORE_PEER;
+
+	if (!awdl_valid_llc_header(frame))
+		return RX_UNEXPECTED_FORMAT;
+	buf_strip(frame, sizeof(struct llc_hdr));
+
+	if ((unsigned int) buf_len(frame) < sizeof(struct awdl_data)) {
+		ESP_LOGW("awdl_data", "frame too short");
+		return RX_TOO_SHORT;
+	}
+
+	/* create ethernet frame */
+	read_be16(frame, 6, &ether_type);
+	buf_strip(frame, sizeof(struct awdl_data));
+
+
+	//printf("test1\n");
+	**out = buf_new_owned(ETHER_MAX_LEN);
+	offset += write_ether_addr(**out, offset, dst);
+	offset += write_ether_addr(**out, offset, src);
+	offset += write_be16(**out, offset, ether_type);
+	offset += write_be16(**out, offset, buf_len(frame)+2);
+	/* TODO avoid copying bytes */
+
+	//printf("\n\n");
+	//for (int i=0; i<buf_len(frame); i++) {
+	//	printf("%02X:", ((uint8_t *)buf_data(frame))[i]);
+	//}
+	//printf("\n");
+	offset += write_bytes(**out, offset, buf_data(frame), buf_len(frame));
+	// create buf
+	//uint8_t test[2] = {0x11,0x22};
+	//struct buf *buf_test = buf_new_owned(2);
+	//memcpy(buf_data(buf_test), test, 2);
+	//offset += write_bytes(**out, offset, buf_data(buf_test), buf_len(buf_test));
+	//memcpy(**out->data + offset, test, 2);
+	//printf("test2\n");
+
+
+	//struct awdl_packet *out_ptr = **out;
+	//out_ptr->dst = dst;
+	//out_ptr->src = src;
+	//out_ptr->ether_type = ether_type;
+	//out_ptr->data = buf_data(frame);
+	//out_ptr->len = buf_len(frame);
+
+	printf("ether type: %04x\n", ether_type);
+	//for (int i=0; i<buf_len(frame); i++) {
+	//	printf("%02x ", buf_data(frame)[i]);
+	//}
+
+	//**out = buf_new_owned(ETHER_MAX_LEN);
+	///* TODO use checked write methods */
+	//offset += write_ether_addr(**out, offset, dst);
+	//offset += write_ether_addr(**out, offset, src);
+	//offset += write_be16(**out, offset, ether_type);
+	///* TODO avoid copying bytes */
+	//offset += write_bytes(**out, offset, buf_data(frame), buf_len(frame));
+	//for (int i=0; i<buf_len(frame); i++) {
+	//	printf("%02x ", buf_data(frame)[i]);
+	//}
+	//printf("\n");
+
+	(*out)++;
+
+	return RX_OK;
+}
+
+int awdl_rx_data_amsdu(const struct buf *frame, struct buf ***out, const struct ether_addr *src __attribute__((unused)),
+                       const struct ether_addr *dst __attribute__((unused)), struct awdl_state *state) {
+	/* Iterate over all subframes */
+	while (buf_len(frame) > 0) {
+		struct ether_addr src_a, dst_a;
+		uint16_t len_a;
+		int err;
+		const struct buf *subframe;
+		READ_ETHER_ADDR(frame, 0, &dst_a);
+		READ_ETHER_ADDR(frame, 6, &src_a);
+		READ_BE16(frame, 12, &len_a);
+		BUF_STRIP(frame, 14); /* strip subframe header */
+		if (len_a > buf_len(frame))
+			return RX_TOO_SHORT;
+		/* create subview of buf */
+		subframe = buf_new_const(buf_data(frame), len_a);
+		err = awdl_rx_data(subframe, out, &src_a, &dst_a, state);
+		buf_free(subframe);
+		if (err < 0)
+			return err;
+		BUF_STRIP(frame, len_a); /* strip frame */
+		if (buf_len(frame) > 0)
+			BUF_STRIP(frame, (4 - ((14 + len_a) % 4)) % 4); /* strip padding */
+	}
+	return RX_OK;
+wire_error:
+	return RX_TOO_SHORT;
+}
+
+int awdl_rx(const struct buf *frame, struct buf ***data_frame, struct awdl_state *state) {
+	const wifi_ieee80211_hdr_t *ieee80211;
+	const struct ether_addr *from, *to;
+	uint16_t fc, qosc; /* frame and QoS control */
+	signed char rssi;
+	uint64_t tsft;
+    /*
+    https://www.radiotap.org/fields/Flags.html
+	//uint8_t flags;
+    flags = radiotap_parse()
+    only to check if "0x10 	frame includes FCS" to remove it. check_fcs()
+    */
+   
+   /*
+	tsft = clock_time_us(); // TODO Radiotap TSFT is more accurate but then need to access TSF in clock_time_us() 
+	from = (void *)frame->hdr.addr2;
+	to = (void *)frame->hdr.addr1; 
+	//fc = le16toh(&frame->hdr.frame_control);
+	fc = frame->hdr.frame_control;
+    rssi = (signed char)frame->rx_ctrl.rssi;
+	// TODO ignore frames from self, should be filtered at pcap level 
+	ESP_LOGI("awdl core", "awdl_rx_action: received from %s", ether_ntoa(from));
+	if (!memcmp(from, &state->self_address, sizeof(struct ether_addr))) {
+		ESP_LOGI("awdl core", "RX_IGNORE_FROM_SELF");
+		return RX_IGNORE_FROM_SELF;
+	}
+	//if (!(to->ether_addr_octet[0] & 0x01) && memcmp(to, &state->self_address, sizeof(struct ether_addr)))
+	//	return RX_IGNORE_NOPROMISC; // neither broadcast/multicast nor unicast to me 
+	//struct awdl_state state;
+	uint8_t* awdl_data = (uint8_t*)frame->payload;
+	int awdl_len = frame->rx_ctrl.sig_len;
+	const struct buf *buf = buf_new_const(awdl_data, awdl_len);
+	*/
+
+
+
+
+	tsft = clock_time_us(); /* TODO Radiotap TSFT is more accurate but then need to access TSF in clock_time_us() */
+	// no radiotap header
+	READ_U8(frame, 0, (unsigned char *)&rssi);
+	BUF_STRIP(frame, sizeof(wifi_pkt_rx_ctrl_t));
+
+	// no flags
+
+	READ_BYTES(frame, 0, NULL, sizeof(wifi_ieee80211_hdr_t));
+
+	ieee80211 = (const wifi_ieee80211_hdr_t *) (buf_data(frame));
+	from = (const struct ether_addr *)&ieee80211->addr2;
+	to = (const struct ether_addr *)&ieee80211->addr1;
+	fc = le16toh(ieee80211->frame_control);
+
+	if (!memcmp(from, &state->self_address, sizeof(struct ether_addr))) {
+		ESP_LOGE("awdl", "RX_IGNORE_FROM_SELF");
+		return RX_IGNORE_FROM_SELF; /* TODO ignore frames from self, should be filtered at pcap level */
+	}
+
+	//if (!(to->ether_addr_octet[0] & 0x01) && memcmp(to, &state->self_address, sizeof(struct ether_addr)))
+	//	return RX_IGNORE_NOPROMISC; /* neither broadcast/multicast nor unicast to me */
+
+	BUF_STRIP(frame, sizeof(wifi_ieee80211_hdr_t));
+
+	/* Processing based on frame type and subtype */
+	switch (fc & (IEEE80211_FCTL_FTYPE | IEEE80211_FCTL_STYPE)) {
+		case IEEE80211_FTYPE_MGMT | IEEE80211_STYPE_ACTION:
+			//ESP_LOGI("owl", "awdl_rx_action");
+			return awdl_rx_action(frame, rssi, tsft, from, to, state);
+		case IEEE80211_FTYPE_DATA | IEEE80211_STYPE_DATA | IEEE80211_STYPE_QOS_DATA:
+			//memcpy(qosc, frame->payload, 2);
+			READ_LE16(frame, 0, &qosc);
+			BUF_STRIP(frame, IEEE80211_QOS_CTL_LEN);
+			//qosc = ((uint16_t *)frame->payload)[0];
+			//qosc = wifi_pkt_t->payload[1];
+			//READ_LE16(frame, 0, &qosc);
+			//BUF_STRIP(frame, IEEE80211_QOS_CTL_LEN);
+			/* TODO should handle block acks if required (IEEE80211_QOS_CTL_ACK_POLICY_XYZ) */
+			printf("qosc: %d\n", qosc);
+			if (qosc & IEEE80211_QOS_CTL_A_MSDU_PRESENT) {
+				ESP_LOGW("owl", "awdl_rx_data_amsdu");
+				return awdl_rx_data_amsdu(frame, data_frame, from, to, state);
+			}
+			/* else fall through */
+		case IEEE80211_FTYPE_DATA | IEEE80211_STYPE_DATA:
+			ESP_LOGI("owl", "awdl_rx_data");
+			//if (frame->rx_ctrl.ampdu_cnt > 0||frame->rx_ctrl.aggregation > 0) {
+			//	printf("ampdu_cnt: %d\n", frame->rx_ctrl.ampdu_cnt);
+			//	printf("aggregation: %d\n", frame->rx_ctrl.aggregation);
+			//}
+    		//for (int i=0; i<(sizeof(wifi_pkt_rx_ctrl_t)); i++) {
+			//	printf("%02X:", ((uint8_t [])wifi_pkt->rx_ctrl)[i]);
+			//}
+			//printf("\n\n");
+			//for (int i=0; i<(frame->rx_ctrl.sig_len-sizeof(wifi_ieee80211_hdr_t)); i++) {
+			//	printf("%02X:", ((uint8_t *)frame->payload)[i]);
+			//}
+			//printf("\n");
+			return awdl_rx_data(frame, data_frame, from, to, state);
+		default:
+			//log_warn("ieee80211: cannot handle type %x and subtype %x of received frame from %s",
+			//         fc & IEEE80211_FCTL_FTYPE, fc & IEEE80211_FCTL_STYPE, ether_ntoa(from));
+			ESP_LOGW("owl", "ieee80211: cannot handle type %x and subtype %x of received frame from %s",
+			         fc & IEEE80211_FCTL_FTYPE, fc & IEEE80211_FCTL_STYPE, ether_ntoa(from));
+			return RX_UNEXPECTED_TYPE;
+	}
+wire_error:
+	return RX_TOO_SHORT;
+}
