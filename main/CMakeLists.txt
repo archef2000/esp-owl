@@ -11,5 +11,5 @@ file(GLOB_RECURSE INC_DIRS
 )
 
 idf_component_register(SRCS ${SRC_FILES}
-                       INCLUDE_DIRS "." "ble" "usb/device" "utils" "led" "ble/nimble_central_utils" "wifi" "owl"
+                       INCLUDE_DIRS "." "utils" "wifi" "owl"
                        )
