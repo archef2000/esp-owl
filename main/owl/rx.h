@@ -22,10 +22,7 @@
 
 #include "frame.h"
 #include "version.h"
-#include "../wifi/capture.h"
 #include "state.h"
-
-#include "wifi/capture.h"
 
 enum RX_RESULT {
 	RX_IGNORE_PEER = 6,
@@ -81,9 +78,5 @@ int awdl_rx_data_amsdu(const struct buf *frame, struct buf ***out,
  * @return RX_OK
  */
 int awdl_rx(const struct buf *frame, struct buf ***data_frames, struct awdl_state *state);
-
-void awdl_neighbor_add(struct awdl_peer *p, void *_io_stat);
-
-void awdl_neighbor_remove(struct awdl_peer *p, void *_io_state);
 
 #endif /* AWDL_RX_H_ */

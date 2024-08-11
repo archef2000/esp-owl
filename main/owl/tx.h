@@ -59,7 +59,6 @@ int awdl_init_full_data_frame(uint8_t *buf, const struct ether_addr *src, const 
                               const uint8_t *payload, unsigned int plen,
                               struct awdl_state *, struct ieee80211_state *);
 
-int ieee80211_init_radiotap_header(uint8_t *buf);
 
 int ieee80211_init_awdl_hdr(uint8_t *buf, const struct ether_addr *src, const struct ether_addr *dst,
                             struct ieee80211_state *, uint16_t type);

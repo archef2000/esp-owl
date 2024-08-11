@@ -390,7 +390,7 @@ int awdl_init_full_data_frame(uint8_t *buf, const struct ether_addr *src, const 
                               struct awdl_state *state, struct ieee80211_state *ieee80211_state) {
 	uint8_t *ptr = buf;
 
-	ptr += ieee80211_init_radiotap_header(ptr);
+	// ptr += ieee80211_init_radiotap_header(ptr); // esp doesn't not have radiotap header
 	ptr += ieee80211_init_awdl_data_hdr(ptr, src, dst, ieee80211_state);
 	ptr += llc_init_awdl_hdr(ptr);
 	ptr += awdl_init_data(ptr, state);

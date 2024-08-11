@@ -93,4 +93,8 @@ void awdl_print_stats(struct ev_loop *loop, ev_signal *handle, int revents);
 int awdl_send_data(const struct buf *buf, const struct io_state *io_state,
                    struct awdl_state *awdl_state, struct ieee80211_state *ieee80211_state);
 
+void awdl_neighbor_add(struct awdl_peer *p, void *_io_stat);
+
+void awdl_neighbor_remove(struct awdl_peer *p, void *_io_state);
+
 #endif /* OWL_CORE_H */

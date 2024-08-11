@@ -2,13 +2,14 @@
 #define IEEE80211_H_
 
 #include <stdint.h>
+
 #ifdef __APPLE__
+
 #include <net/ethernet.h>
 
-//#else
-//#include <netinet/ether.h>
-#endif
+#else
 #include "ethernet.h"
+#endif
 
 /* Some relevant Ethernet Protocol IDs */
 #define ETH_P_IP	0x0800		/* Internet Protocol packet	*/

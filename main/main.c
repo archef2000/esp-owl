@@ -7,17 +7,17 @@
 #include "utils/utils.h"
 #include "wifi/capture.h"
 
-CMD_cb ble_callbacks;
 bool updating = false;
-SemaphoreHandle_t update_mutex;
 
 #define MAX_TOKENS 100
 
-#define BLE_COMMAND 0
-#define AWDL_COMMAND  1
-#define OPENDROP_COMMAND  2
+enum COMMANDS {
+    BLE_COMMAND,
+    AWDL_COMMAND,
+    OPENDROP_COMMAND,
+    COMMAND_LENGTH
+};
 
-int COMMAND_LENGTH = 3;
 char* commands[COMMAND_LENGTH] = {
     "ble",
     "awdl",

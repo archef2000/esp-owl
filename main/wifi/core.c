@@ -243,6 +243,20 @@ void awdl_switch_channel(struct timer_arg_t *timer) {
 	esp_timer_start_once(timer->handle, next_aw);
 }
 
+void awdl_neighbor_add(struct awdl_peer *p, void *_io_stat) {
+	printf("awdl_neighbor_add: ");
+	printf("p->name: %s; ", p->name);
+	printf("country_code: %s\n", p->country_code);
+	// TODO: add to ipv6 neigbor table
+}
+
+void awdl_neighbor_remove(struct awdl_peer *p, void *_io_state) {
+	printf("awdl_neighbor_remove: ");
+	printf("p->name: %s; ", p->name);
+	printf("country_code: %s\n", p->country_code);
+	// TODO: remove to ipv6 neigbor table
+}
+
 void awdl_clean_peers(struct timer_arg_t *arg) {
 	ESP_LOGD("awdl core", "awdl_clean_peers");
     //int64_t start_time = esp_timer_get_time();

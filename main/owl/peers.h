@@ -22,7 +22,6 @@
 
 #include <stdint.h>
 #include "ethernet.h"
-//#include <net/ethernet.h>
 
 #include "election.h"
 #include "channel.h"

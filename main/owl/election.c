@@ -28,6 +28,13 @@ static inline int compare(uint32_t a, uint32_t b) {
 	return (a < b) ? -1 : (a > b);
 }
 
+int compare_ether_addr(const struct ether_addr *a, const struct ether_addr *b) {
+	return memcmp(a, b, sizeof(struct ether_addr));
+}
+
+int awdl_election_is_sync_master(const struct awdl_election_state *state, const struct ether_addr *addr) {
+	return !compare_ether_addr(&state->sync_addr, addr);
+}
 
 static void awdl_election_reset_metric(struct awdl_election_state *state) {
 	state->self_counter = AWDL_ELECTION_COUNTER_INIT;
@@ -56,15 +63,6 @@ static int awdl_election_compare_master(const struct awdl_election_state *a, con
 		result = compare(a->master_metric, b->master_metric);
 	return result;
 }
-
-int compare_ether_addr(const struct ether_addr *a, const struct ether_addr *b) {
-	return memcmp(a, b, sizeof(struct ether_addr));
-}
-
-int awdl_election_is_sync_master(const struct awdl_election_state *state, const struct ether_addr *addr) {
-	return !compare_ether_addr(&state->sync_addr, addr);
-}
-
 
 void awdl_election_run(struct awdl_election_state *state, const struct awdl_peer_state *peers) {
 	struct awdl_peer *peer;

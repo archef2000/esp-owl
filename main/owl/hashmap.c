@@ -9,8 +9,6 @@
 
 #include "siphash24.h"
 
-#include "freertos/FreeRTOS.h"
-
 #define INITIAL_SIZE (256)
 #define MAX_CHAIN_LENGTH (8)
 
