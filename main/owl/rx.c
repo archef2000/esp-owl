@@ -34,7 +34,7 @@ int awdl_handle_sync_params_tlv(struct awdl_peer *src, const struct buf *val, st
 	int64_t sync_err_tu;
 
 	if (!awdl_election_is_sync_master(&state->election, &src->addr)) {
-		ESP_LOGW("awdl", "awdl_handle_sync_params_tlv: ignore sync params from nodes that are not our master");
+		log_warn("awdl_handle_sync_params_tlv: ignore sync params from nodes that are not our master");
 		return RX_IGNORE; /* ignore sync params from nodes that are not our master */
 	}
 
@@ -49,12 +49,8 @@ int awdl_handle_sync_params_tlv(struct awdl_peer *src, const struct buf *val, st
 	awdl_sync_update_last(now, time_to_next_aw_master, aw_counter_master, &state->sync);
 	if (sync_err_tu > AWDL_SYNC_THRESHOLD || sync_err_tu < -AWDL_SYNC_THRESHOLD) {
 		state->sync.meas_err++;
-		ESP_LOGE("awdl", "Sync error %lld TU (%.02f %%)", sync_err_tu, state->sync.meas_err * 100.0 / state->sync.meas_total);
-	} /*else {
-		ESP_LOGI("awdl", "Sync error %lld TU (%.02f %%)", sync_err_tu, (state->sync.meas_total-state->sync.meas_err)*100.0/state->sync.meas_total ); 
-		ESP_LOGI("awdl", "err: %lld, total: %lld, rate %lld", state->sync.meas_err, state->sync.meas_total,(state->sync.meas_total-state->sync.meas_err));
+		log_warn("Sync error %lld TU (%.02f %%)", sync_err_tu, state->sync.meas_err * 100.0 / state->sync.meas_total);
 	}
-	*/
 
 	return RX_OK;
 wire_error:
@@ -454,11 +450,6 @@ int awdl_rx(const struct buf *frame, struct buf ***data_frame, struct awdl_state
 	fc = frame->hdr.frame_control;
     rssi = (signed char)frame->rx_ctrl.rssi;
 	// TODO ignore frames from self, should be filtered at pcap level 
-	ESP_LOGI("awdl core", "awdl_rx_action: received from %s", ether_ntoa(from));
-	if (!memcmp(from, &state->self_address, sizeof(struct ether_addr))) {
-		ESP_LOGI("awdl core", "RX_IGNORE_FROM_SELF");
-		return RX_IGNORE_FROM_SELF;
-	}
 	//if (!(to->ether_addr_octet[0] & 0x01) && memcmp(to, &state->self_address, sizeof(struct ether_addr)))
 	//	return RX_IGNORE_NOPROMISC; // neither broadcast/multicast nor unicast to me 
 	//struct awdl_state state;
@@ -502,7 +493,7 @@ int awdl_rx(const struct buf *frame, struct buf ***data_frame, struct awdl_state
 			/* TODO should handle block acks if required (IEEE80211_QOS_CTL_ACK_POLICY_XYZ) */
 			printf("qosc: %d\n", qosc);
 			if (qosc & IEEE80211_QOS_CTL_A_MSDU_PRESENT) {
-				ESP_LOGW("owl", "awdl_rx_data_amsdu");
+				log_warn("awdl_rx_data_amsdu");
 				return awdl_rx_data_amsdu(frame, data_frame, from, to, state);
 			}
 			/* else fall through */

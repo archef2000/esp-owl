@@ -27,6 +27,7 @@
 #include <time.h>
 
 #include "log.h"
+#include "esp_log.h"
 
 static struct {
 	void *udata;
@@ -88,7 +89,7 @@ void log_set_quiet(int enable) {
 }
 
 
-int log_log(int level, const char *file, int line, const char *fmt, ...) {
+int log_log(int level, const char *file, int line, const char *func, const char *fmt, ...) {
 	if (level > L.level) {
 		return 0;
 	}
@@ -96,39 +97,15 @@ int log_log(int level, const char *file, int line, const char *fmt, ...) {
 	/* Acquire lock */
 	lock();
 
-	/* Get current time */
-	time_t t = time(NULL);
-	struct tm lt;
-	localtime_r(&t, &lt);
-
 	/* Log to stderr */
 	if (!L.quiet) {
 		va_list args;
-		char buf[16];
-		buf[strftime(buf, sizeof(buf), "%H:%M:%S", &lt)] = '\0';
-#ifdef LOG_USE_COLOR
-		fprintf(
-			stderr, "%s %s%-5s\x1b[0m \x1b[90m%s:%d:\x1b[0m ",
-			buf, level_colors[level], level_names[level], file, line);
-#else
-		fprintf(stderr, "%s %-5s: ", buf, level_names[level]);
-#endif
-		va_start(args, fmt);
-		vfprintf(stderr, fmt, args);
-		va_end(args);
-		fprintf(stderr, "\n");
-	}
-
-	/* Log to file */
-	if (L.fp) {
-		va_list args;
-		char buf[32];
-		buf[strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", &lt)] = '\0';
-		fprintf(L.fp, "%s %-6s %s:%d: ", buf, level_names[level], file, line);
-		va_start(args, fmt);
-		vfprintf(L.fp, fmt, args);
-		va_end(args);
-		fprintf(L.fp, "\n");
+		char buf[1024];
+    	vsnprintf(buf, sizeof(buf), fmt, args);
+    	va_end(args);
+	
+		ESP_LOG_LEVEL(level, func, "[%s:%d] %s\n", file, line, buf);
+		
 	}
 
 	/* Release lock */

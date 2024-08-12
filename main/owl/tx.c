@@ -293,6 +293,7 @@ int awdl_init_version_tlv(uint8_t *buf, const struct awdl_state *state) {
 
 	return sizeof(struct awdl_version_tlv);
 }
+
 /*
 int ieee80211_init_radiotap_header(uint8_t *buf) {
 	/

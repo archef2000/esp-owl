@@ -24,7 +24,6 @@
 #include "peers.h"
 #include "hashmap.h"
 #include "log.h"
-#include "esp_log.h"
 
 #define PEERS_DEFAULT_TIMEOUT        2000000 /* in ms */
 #define PEERS_DEFAULT_CLEAN_INTERVAL 1000000 /* in ms */
@@ -38,6 +37,32 @@ void awdl_peer_state_init(struct awdl_peer_state *state) {
 awdl_peers_t awdl_peers_init() {
 	return (awdl_peers_t) hashmap_new(sizeof(struct ether_addr));
 }
+
+void awdl_peers_free(awdl_peers_t peers) {
+	struct awdl_peer *peer;
+	map_t map = (map_t) peers;
+
+	/* Remove all allocated peers */
+	map_it_t it = hashmap_it_new(map);
+	while (hashmap_it_next(it, NULL, (any_t *) &peer) == MAP_OK) {
+		hashmap_it_remove(it);
+		free(peer);
+	}
+	hashmap_it_free(it);
+
+	/* Remove hashmap itself */
+	hashmap_free(peers);
+}
+
+int awdl_peers_length(awdl_peers_t peers) {
+	map_t map = (map_t) peers;
+	return hashmap_length(map);
+}
+
+static int awdl_peer_is_valid(const struct awdl_peer *peer) {
+	return peer->sent_mif && peer->devclass && peer->version;
+}
+
 struct awdl_peer *awdl_peer_new(const struct ether_addr *addr) {
 	struct awdl_peer *peer = (struct awdl_peer *) malloc(sizeof(struct awdl_peer));
 	*(struct ether_addr *) &peer->addr = *addr;
@@ -53,20 +78,6 @@ struct awdl_peer *awdl_peer_new(const struct ether_addr *addr) {
 	strcpy(peer->country_code, "NA");
 	peer->is_valid = 0;
 	return peer;
-}
-
-static int awdl_peer_is_valid(const struct awdl_peer *peer) {
-	return peer->sent_mif && peer->devclass && peer->version;
-}
-
-enum peers_status awdl_peer_get(awdl_peers_t peers, const struct ether_addr *_addr, struct awdl_peer **peer) {
-	int status;
-	map_t map = (map_t) peers;
-	mkey_t addr = (mkey_t) _addr;
-	status = hashmap_get(map, addr, (any_t *) peer, 0 /* keep */);
-	if (status == MAP_MISSING)
-		return PEERS_MISSING;
-	return PEERS_OK;
 }
 
 enum peers_status
@@ -99,13 +110,64 @@ out:
 	if (!peer->is_valid && awdl_peer_is_valid(peer)) {
 		/* peer has turned valid */
 		peer->is_valid = 1;
-		ESP_LOGI("awdl", "add peer %s (%s)", ether_ntoa(&peer->addr), peer->name);
+		log_info("add peer %s (%s)", ether_ntoa(&peer->addr), peer->name);
 		if (cb)
 			cb(peer, arg);
 	}
 	return result;
 }
 
+enum peers_status awdl_peer_remove(awdl_peers_t peers, const struct ether_addr *_addr, awdl_peer_cb cb, void *arg) {
+	int status;
+	map_t map = (map_t) peers;
+	mkey_t addr = (mkey_t) _addr;
+	struct awdl_peer *peer;
+	status = hashmap_get(map, addr, (any_t *) &peer, 1 /* remove */);
+	if (status == MAP_MISSING)
+		return PEERS_MISSING;
+	if (peer->is_valid) {
+		log_info("remove peer %s (%s)", ether_ntoa(&peer->addr), peer->name);
+		if (cb)
+			cb(peer, arg);
+	}
+	free(peer);
+	return PEERS_OK;
+}
+
+enum peers_status awdl_peer_get(awdl_peers_t peers, const struct ether_addr *_addr, struct awdl_peer **peer) {
+	int status;
+	map_t map = (map_t) peers;
+	mkey_t addr = (mkey_t) _addr;
+	status = hashmap_get(map, addr, (any_t *) peer, 0 /* keep */);
+	if (status == MAP_MISSING)
+		return PEERS_MISSING;
+	return PEERS_OK;
+}
+
+int awdl_peer_print(const struct awdl_peer *peer, char *str, int len) {
+	char *cur = str, *const end = str + len;
+	if (strlen(peer->name))
+		cur += snprintf(cur, cur < end ? end - cur : 0, "%s: ", peer->name);
+	else
+		cur += snprintf(cur, cur < end ? end - cur : 0, "<UNNAMED>: ");
+    cur += awdl_election_tree_print(&peer->election, cur, end - cur);
+	return cur - str;
+}
+
+int awdl_peers_print(awdl_peers_t peers, char *str, int len) {
+	char *cur = str, *const end = str + len;
+	map_t map = (map_t) peers;
+	map_it_t it = hashmap_it_new(map);
+	struct awdl_peer *peer;
+
+	while (hashmap_it_next(it, NULL, (any_t *) &peer) == MAP_OK) {
+        cur += awdl_peer_print(peer, cur, end - cur);
+        cur += snprintf(cur, cur < end ? end - cur : 0, "\n");
+    }
+
+	hashmap_it_free(it);
+	return cur - str;
+}
 
 void awdl_peers_remove(awdl_peers_t peers, uint64_t before, awdl_peer_cb cb, void *arg) {
 	map_t map = (map_t) peers;
@@ -115,7 +177,7 @@ void awdl_peers_remove(awdl_peers_t peers, uint64_t before, awdl_peer_cb cb, voi
 	while (hashmap_it_next(it, NULL, (any_t *) &peer) == MAP_OK) {
 		if (peer->last_update < before) {
 			if (peer->is_valid) {
-				ESP_LOGI("awdl", "remove peer %s (%s)", ether_ntoa(&peer->addr), peer->name);
+				log_info("remove peer %s (%s)", ether_ntoa(&peer->addr), peer->name);
 				if (cb)
 					cb(peer, arg);
 			}
@@ -136,4 +198,16 @@ enum peers_status awdl_peers_it_next(awdl_peers_it_t it, struct awdl_peer **peer
 		return PEERS_OK;
 	else
 		return PEERS_MISSING;
+}
+
+enum peers_status awdl_peers_it_remove(awdl_peers_it_t it) {
+	int s = hashmap_it_remove((map_it_t) it);
+	if (s == MAP_OK)
+		return PEERS_OK;
+	else
+		return PEERS_MISSING;
+}
+
+void awdl_peers_it_free(awdl_peers_it_t it) {
+	hashmap_it_free((map_it_t) it);
 }
