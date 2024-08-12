@@ -25,7 +25,7 @@ jobs:
       uses: svenstaro/upload-release-action@v2
       with:
         repo_token: ${{ secrets.GITHUB_TOKEN }}
-        file: build/owl-esp32s3.bin
+        file: build/owl.bin
         asset_name: owl-esp32s3.bin
         tag: ${{ github.ref }}
         release_name: Release build for esp32s3
