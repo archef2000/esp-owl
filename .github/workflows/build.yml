@@ -34,7 +34,7 @@ jobs:
         body: ${{ github.event.pull_request.title }}
     - name: Install dependencies
       run: |
-        apt-get install python3-pip
+        sudo apt-get install python3-pip
         pip install esptool
     - name: Merge binaries
       run: |
