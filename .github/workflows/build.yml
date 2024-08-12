@@ -1,0 +1,42 @@
+name: Build
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v2
+      with:
+        submodules: 'recursive'
+    - name: esp-idf build
+      uses: espressif/esp-idf-ci-action@v1
+      with:
+        esp_idf_version: v5.2
+        target: esp32s3
+        path: './'
+    - name: Upload binaries to release
+      uses: svenstaro/upload-release-action@v2
+      with:
+        repo_token: ${{ secrets.GITHUB_TOKEN }}
+        file: build/owl-esp32s3.bin
+        asset_name: owl-esp32s3.bin
+        tag: ${{ github.ref }}
+        release_name: Release build for esp32s3
+        overwrite: true
+        make_latest: false
+        body: ${{ github.event.pull_request.title }}
+    #- name: Create Release
+    #  id: create_release
+    #  uses: actions/create-release@v1
+    #  env:
+    #    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    #  with:
+    #    tag_name: ${{ github.ref }}
+    #    release_name: Release build for esp32s3
+    #    body: ${{ github.event.pull_request.title }}
+    #    draft: false
+    #    prerelease: true
