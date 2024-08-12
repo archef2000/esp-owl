@@ -21,7 +21,7 @@ jobs:
         esp_idf_version: v5.2
         target: esp32s3
         path: './'
-    - name: Upload binaries to release
+    - name: Upload update binary to release
       uses: svenstaro/upload-release-action@v2
       with:
         repo_token: ${{ secrets.GITHUB_TOKEN }}
@@ -32,15 +32,21 @@ jobs:
         overwrite: true
         make_latest: false
         body: ${{ github.event.pull_request.title }}
-
-    #- name: Create Release
-    #  id: create_release
-    #  uses: actions/create-release@v1
-    #  env:
-    #    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    #  with:
-    #    tag_name: ${{ github.ref }}
-    #    release_name: Release build for esp32s3
-    #    body: ${{ github.event.pull_request.title }}
-    #    draft: false
-    #    prerelease: true
+    - name: Install dependencies
+      run: |
+        apt-get install python3-pip
+        pip install esptool
+    - name: Merge binaries
+      run: |
+        python -m esptool --chip esp32s3 merge_bin -o combined.bin --flash_mode dio --flash_size 8MB --flash_freq 80m 0x0 build/bootloader/bootloader.bin 0x8000 build/partition_table/partition-table.bin 0xd000 build/ota_data_initial.bin 0x10000 build/owl.bin
+    - name: Upload full binary to release
+      uses: svenstaro/upload-release-action@v2
+      with:
+        repo_token: ${{ secrets.GITHUB_TOKEN }}
+        file: combined.bin
+        asset_name: owl-full-esp32s3.bin
+        tag: ${{ github.ref }}
+        release_name: Release build for esp32s3
+        overwrite: true
+        make_latest: false
+        body: ${{ github.event.pull_request.title }}
