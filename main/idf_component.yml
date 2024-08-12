@@ -1,6 +1,4 @@
 dependencies:
-  espressif/led_strip: "^2.5.3"
-  espressif/esp_tinyusb: "^1.1"
   nimble_peripheral_utils: # duplicate misc.c
     path: ${IDF_PATH}/examples/bluetooth/nimble/common/nimble_peripheral_utils
   #nimble_central_utils:
