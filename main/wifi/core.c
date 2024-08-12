@@ -92,34 +92,14 @@ void host_device_ready(void *arg, esp_event_base_t event_base, int32_t event_id,
 
 void timer_task(void *pvParameters) {
     struct timer_arg_t *arg = (struct timer_arg_t *)pvParameters;
-	//printf("timer_task start%s\n", arg->name);
 	int64_t start_time = esp_timer_get_time();
 	arg->cb(arg);
-	ESP_LOGI("timer_task","finished: %s time: %lld", arg->name, esp_timer_get_time() - start_time);
-	//printf("timer_task finish%s\n", arg->name);
-	return;
-    //uint32_t ulNotificationValue;
-    while (1) {
-        //ulNotificationValue = 
-		ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-		arg->cb(arg);
-        //if (ulNotificationValue > 0) {
-        //}
-    }
+	ESP_LOGD("timer_task","finished: %s time: %lld", arg->name, esp_timer_get_time() - start_time);
 }
 
 void timer_task_trigger(struct timer_arg_t *arg) {
-    //int64_t start_time = esp_timer_get_time();
-	//int64_t end_time = esp_timer_get_time();
-    //printf("Function execution time1: %lld microseconds\n", end_time-start_time);
-	//ESP_LOGI(TAG, "timer_task_trigger %s", arg->name);
-	//start_time = esp_timer_get_time();
 	if (arg->cb != NULL)
 		xTaskNotifyGive(arg->task);
-	//else
-	//	ESP_LOGE(TAG, "timer_task_trigger: no callback");
-	//end_time = esp_timer_get_time();
-    //printf("Function execution time2: %lld microseconds\n", end_time-start_time);
 }
 
 void timer_init_task(struct timer_arg_t *timer, timer_cb_t cb, uint64_t in, bool repeat, const char *name) {
@@ -144,7 +124,6 @@ void timer_init(struct timer_arg_t *timer, timer_cb_t cb, uint64_t in, bool repe
 	};
 	timer->cb = cb;
 	timer->name = name;
-    //xTaskCreate(timer_task, name, 20480, timer, 1, &timer->task);
 	esp_timer_create(&timer_args,&timer->handle);
 	if (repeat)
 		esp_timer_start_periodic(timer->handle, in);
@@ -187,30 +166,15 @@ wire_error:
 void awdl_send_action(struct daemon_state *state, enum awdl_action_type type) {
 	int64_t start_time = esp_timer_get_time();
 	int len;
-	//printf("awdl awdl_send_action\n");
-	uint8_t buf[15535]; // 65535
-	//vTaskDelay(10/portTICK_PERIOD_MS);
-	//printf("interval: %d", state->awdl_state.psf_interval);
-	//printf("\nawdl test\n");
-
-    //printf("Address of awdl_init_full_action_frame: %p\n", (void*)awdl_init_full_action_frame);
-	//vTaskDelay(10/portTICK_PERIOD_MS);
-    //int64_t start_time = esp_timer_get_time();
+	uint8_t buf[15535]; 
 	len = awdl_init_full_action_frame(buf, &state->awdl_state, &state->ieee80211_state, type);
-	//printf("awdl_send_action send %s size %d time: %lld microseconds\n", awdl_frame_as_str(type), len, esp_timer_get_time() - start_time);
-	//vTaskDelay(100/portTICK_PERIOD_MS);
-	//free(buf);
 	if (len < 0){
 		ESP_LOGE(TAG, "awdl_send_action awdl_init_full_action_frame error");
 		return;
 	}
-	//log_trace("send %s size: %d", awdl_frame_as_str(type), len);
 	printf("\n%lld\n", esp_timer_get_time() - start_time);
 	wlan_send(&state->io, buf, len);
-	//printf("\n%lld\n", esp_timer_get_time() - start_time);
-
 	state->awdl_state.stats.tx_action++;
-	//printf("\n%lld\n", esp_timer_get_time() - start_time);
 }
 
 void awdl_switch_channel(struct timer_arg_t *timer) {
@@ -230,11 +194,6 @@ void awdl_switch_channel(struct timer_arg_t *timer) {
 
 	if (chan_num_new && (chan_num_new != chan_num_old)) {
 		ESP_LOGI(TAG, "switch channel to %d (slot %d)", chan_num_new, slot);
-		//if (!state->io.wlan_is_file) {
-		//	bool is_available;
-		//	is_channel_available(state->io.wlan_ifindex, chan_num_new, &is_available);
-		//	set_channel(state->io.wlan_ifindex, chan_num_new);
-		//}
 		awdl_state->channel.current = chan_new;
 	}
 
@@ -263,12 +222,6 @@ void awdl_clean_peers(struct timer_arg_t *arg) {
 
 	uint64_t cutoff_time;
 	struct daemon_state *state = arg->data;
-	//struct awdl_state *awdl_state = &state->awdl_state;
-	//printf("awdl psf_interval\n");
-	////vTaskDelay(10/portTICK_PERIOD_MS);
-	//printf("interval: %d", awdl_state->psf_interval);
-	//printf("\nawdl test\n");
-	
 	cutoff_time = clock_time_us() - state->awdl_state.peers.timeout;
 	awdl_peers_remove(state->awdl_state.peers.peers, cutoff_time,
 	                  state->awdl_state.peer_remove_cb, state->awdl_state.peer_remove_cb_data);
@@ -277,15 +230,9 @@ void awdl_clean_peers(struct timer_arg_t *arg) {
 	awdl_election_run(&state->awdl_state.election, &state->awdl_state.peers);
 
 	esp_timer_start_once(arg->handle, state->awdl_state.peers.clean_interval);
-	
-    //int64_t end_time = esp_timer_get_time();
-    //// Calculate elapsed time in microseconds
-    //int64_t elapsed_time = end_time - start_time;
-    //printf("Function execution time: %lld microseconds\n", elapsed_time);
 }
 
 void awdl_send_psf(struct timer_arg_t *arg) {
-	//struct daemon_state *state = (struct daemon_state *)arg->data;
 	awdl_send_action((struct daemon_state *)arg->data, AWDL_ACTION_PSF);
 }
 
@@ -300,8 +247,6 @@ void awdl_send_mif(struct timer_arg_t *timer) {
 
 	/* Schedule MIF in middle of sequence (if non-zero) */
 	if (awdl_chan_num(awdl_state->channel.current, awdl_state->channel.enc) > 0) {
-
-		//ESP_LOGE(TAG, "awdl_send_mif");
 		awdl_send_action(state, AWDL_ACTION_MIF);
 	}
 
@@ -385,8 +330,6 @@ void awdl_send_multicast(struct timer_arg_t *timer) {
 }
 
 void awdl_schedule(struct daemon_state *state) {
-	//esp_event_handler_register(AWDL_EVENT_BASE, READ_HOST, host_device_ready, state);
-
 	state->timer_state.chan_timer.data = (void *)state;
 	timer_init(&state->timer_state.chan_timer, awdl_switch_channel, 0, false, "chan_timer");
 	
