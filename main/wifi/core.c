@@ -385,7 +385,7 @@ void awdl_send_multicast(struct timer_arg_t *timer) {
 }
 
 void awdl_schedule(struct daemon_state *state) {
-	esp_event_handler_register(AWDL_EVENT_BASE, READ_HOST, host_device_ready, state);
+	//esp_event_handler_register(AWDL_EVENT_BASE, READ_HOST, host_device_ready, state);
 
 	state->timer_state.chan_timer.data = (void *)state;
 	timer_init(&state->timer_state.chan_timer, awdl_switch_channel, 0, false, "chan_timer");

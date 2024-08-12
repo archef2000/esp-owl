@@ -347,7 +347,7 @@ esp_err_t awdl_init()
     return ESP_OK;
 }
 
-awdl_driver_handle awdl_create()
+awdl_driver_handle awdl_create( struct awdl_state *state)
 {
     ESP_LOGI(TAG, "(%s) creating awdl driver", __func__);
 
@@ -362,6 +362,7 @@ awdl_driver_handle awdl_create()
 
     driver->conn_handle = BLE_HS_CONN_HANDLE_NONE;
     driver->chan        = NULL;
+    driver->userdata    = (void *)state;
 
     return driver;
 }

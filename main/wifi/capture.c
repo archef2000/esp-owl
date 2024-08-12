@@ -258,7 +258,7 @@ void send_data_loop(void* arg) {
     while (1) {
 		printf("\n\n\n\n\n");
         send_data(lowpan6_ble_netif);
-		send_raw_tcp_packet(lowpan6_ble_netif);
+		//send_raw_tcp_packet(lowpan6_ble_netif);
         vTaskDelay(pdMS_TO_TICKS(3000));
     }
 }
@@ -421,7 +421,7 @@ wifi_sniffer_init(void)
     };
     esp_netif_t* lowpan6_ble_netif = esp_netif_new(&cfg_awdl);
 
-    awdl_driver_handle lowpan6_ble_driver = awdl_create();
+    awdl_driver_handle lowpan6_ble_driver = awdl_create(&state.awdl_state);
     if (lowpan6_ble_driver != NULL)
     {
         ESP_ERROR_CHECK(esp_netif_attach(lowpan6_ble_netif, lowpan6_ble_driver));
@@ -446,7 +446,7 @@ wifi_sniffer_init(void)
     IP4_ADDR(&ip_info.netmask, 255, 255, 255, 0); // Set your desired Netmask here
     esp_netif_set_ip_info(lowpan6_ble_netif, &ip_info);
 
-	//xTaskCreate(send_data_loop, "send_data_loop", 8096, lowpan6_ble_netif, 1, NULL);
+	xTaskCreate(send_data_loop, "send_data_loop", 8096, lowpan6_ble_netif, 1, NULL);
 	
     //xTaskCreate(tcp_server_task, "tcp_server", 8096, NULL, 5, NULL);
 	// https://github.com/geonavo/lowpan6_ble/blob/main/examples/echo/server/main/main.c#L197

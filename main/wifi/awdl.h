@@ -2,7 +2,7 @@
 #include "esp_compiler.h"
 #include "esp_netif.h"
 #include "esp_err.h"
-
+#include "owl/state.h"
 
 /** Maximum concurrent IPSP channels */
 #define LOWPAN6_BLE_IPSP_MAX_CHANNELS 1
@@ -114,6 +114,6 @@ esp_err_t awdl_create_server(awdl_driver_handle handle, awdl_event_handler cb, v
 
 extern esp_netif_netstack_config_t* netstack_default_awdl;
 
-awdl_driver_handle awdl_create(void);
+awdl_driver_handle awdl_create( struct awdl_state *state );
 
 esp_err_t awdl_init();

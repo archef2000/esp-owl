@@ -90,26 +90,14 @@ void log_set_quiet(int enable) {
 
 
 int log_log(int level, const char *file, int line, const char *func, const char *fmt, ...) {
-	if (level > L.level) {
-		return 0;
-	}
+    char buf[1024];
+    va_list args;
+    va_start(args, fmt);
 
-	/* Acquire lock */
-	lock();
+    vsnprintf(buf, sizeof(buf), fmt, args);
 
-	/* Log to stderr */
-	if (!L.quiet) {
-		va_list args;
-		char buf[1024];
-    	vsnprintf(buf, sizeof(buf), fmt, args);
-    	va_end(args);
-	
-		ESP_LOG_LEVEL(level, func, "[%s:%d] %s\n", file, line, buf);
-		
-	}
-
-	/* Release lock */
-	unlock();
+    va_end(args);
+	ESP_LOG_LEVEL(level, func, "[%s:%d] %s\n", file, line, buf);
 
 	return 1;
 }
