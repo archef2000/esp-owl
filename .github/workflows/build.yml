@@ -45,7 +45,7 @@ jobs:
         repo_token: ${{ secrets.GITHUB_TOKEN }}
         file: combined.bin
         asset_name: owl-full-esp32s3.bin
-        tag: ${{ github.ref }}
+        tag: build
         release_name: Release build for esp32s3
         overwrite: true
         make_latest: false
