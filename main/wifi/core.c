@@ -172,7 +172,7 @@ void awdl_send_action(struct daemon_state *state, enum awdl_action_type type) {
 		ESP_LOGE(TAG, "awdl_send_action awdl_init_full_action_frame error");
 		return;
 	}
-	printf("\n%lld\n", esp_timer_get_time() - start_time);
+	//printf("\n%lld\n", esp_timer_get_time() - start_time);
 	wlan_send(&state->io, buf, len);
 	state->awdl_state.stats.tx_action++;
 }
