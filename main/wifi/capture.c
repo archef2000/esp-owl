@@ -85,7 +85,7 @@ const uint8_t answer_query[46] = {
 #include "esp_netif.h"
 #include "esp_log.h"
 #include "esp_netif_net_stack.h"
-#include "awdl.h"
+#include "awdl.h" 
 #include "awdl_netif.h"
 
 #define TAG "custom_netif_example"
@@ -156,10 +156,10 @@ void send_raw_tcp_packet(esp_netif_t *netif) {
 void send_data_loop(void* arg) {
 	esp_netif_t* lowpan6_ble_netif = (esp_netif_t*)arg;
     while (1) {
-		printf("\n\n\n\n\n");
+		printf("\n");
         send_data(lowpan6_ble_netif);
 		//send_raw_tcp_packet(lowpan6_ble_netif);
-        vTaskDelay(pdMS_TO_TICKS(3000));
+        vTaskDelay(5000/portTICK_PERIOD_MS);
     }
 }
 
@@ -240,7 +240,7 @@ void wifi_sniffer_init(void)
     IP4_ADDR(&ip_info.netmask, 255, 255, 255, 0); // Set your desired Netmask here
     esp_netif_set_ip_info(lowpan6_ble_netif, &ip_info);
 
-	xTaskCreate(send_data_loop, "send_data_loop", 8096, lowpan6_ble_netif, 1, NULL);
+	xTaskCreate(send_data_loop, "send_data_loop", 8096, lowpan6_ble_netif, 10, NULL);
 	
     // xTaskCreate(tcp_server_task, "tcp_server", 8096, NULL, 5, NULL);
 	// https://github.com/geonavo/lowpan6_ble/blob/main/examples/echo/server/main/main.c#L197
