@@ -27,7 +27,7 @@ jobs:
         repo_token: ${{ secrets.GITHUB_TOKEN }}
         file: build/owl.bin
         asset_name: owl-esp32s3.bin
-        tag: ${{ github.ref }}
+        tag: build
         release_name: Release build for esp32s3
         overwrite: true
         make_latest: false
