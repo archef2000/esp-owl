@@ -1,5 +1,7 @@
 dependencies:
   nimble_peripheral_utils: # duplicate misc.c
     path: ${IDF_PATH}/examples/bluetooth/nimble/common/nimble_peripheral_utils
+  espressif/mdns:
+    version: "^1.0.0"
   #nimble_central_utils:
   #  path: ${IDF_PATH}/examples/bluetooth/nimble/common/nimble_central_utils

@@ -388,10 +388,12 @@ int awdl_rx_data(const struct buf *frame, struct buf ***out, const struct ether_
 
 	**out = buf_new_owned(ETHER_MAX_LEN);
 
+	printf("awdl_rx_data_frame: len: %i\n", buf_len(frame));
 	/* TODO use checked write methods */
 	offset += write_ether_addr(**out, offset, dst);
 	offset += write_ether_addr(**out, offset, src);
 	offset += write_be16(**out, offset, ether_type);
+	offset += write_u8(**out, offset, buf_len(frame));
 	/* TODO avoid copying bytes */
 	offset += write_bytes(**out, offset, buf_data(frame), buf_len(frame));
 
@@ -498,6 +500,7 @@ int awdl_rx(const struct buf *frame, struct buf ***data_frame, struct awdl_state
 			}
 			/* else fall through */
 		case IEEE80211_FTYPE_DATA | IEEE80211_STYPE_DATA:
+			printf("awdl_rx_data_frame: DATA\n");
 			return awdl_rx_data(frame, data_frame, from, to, state);
 		default:
 			log_warn("ieee80211: cannot handle type %x and subtype %x of received frame from %s",

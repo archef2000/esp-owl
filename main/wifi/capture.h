@@ -1,6 +1,7 @@
 
 #include "esp_wifi_types.h"
 #include "owl/ethernet.h"
+#include "esp_netif.h"
 
 #ifndef WIFI_CAPTURE_H
 #define WIFI_CAPTURE_H
@@ -30,7 +31,7 @@ struct __attribute__((scalar_storage_order("little-endian"))) awdl_packet {
 	struct ether_addr dst;
 	struct ether_addr src;
 	uint16_t ether_type;
-	uint16_t len;
+	uint8_t len;
 	uint8_t data[0];
 };
 

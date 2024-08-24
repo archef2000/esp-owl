@@ -11,7 +11,7 @@
 static QueueHandle_t uart_queue;
 
 void uart_event_task(void *pvParameters) {
-    uint8_t *command = (uint8_t *) malloc(BUF_SIZE);
+    char *command = malloc(BUF_SIZE);
     uint8_t command_len = 0;
     uart_event_t event;
     uint8_t *data = (uint8_t *) malloc(BUF_SIZE);
@@ -24,10 +24,15 @@ void uart_event_task(void *pvParameters) {
                     memcpy(command+command_len, data, event.size);
                     command_len += event.size;
                     printf("%.*s\n", command_len, command);
-                    for (int i = 0; i < event.size; i++) {
-                        if (data[i] == '\n'|| data[i] == '\r') {
-                            printf("command: %.*s len: %d\n", command_len, command, command_len);
-                            main_cmd((char *)command);
+                    for (int i = 0; i < command_len; i++) {
+                        if (command[i] == '\n'|| command[i] == '\r') {
+                            if (command_len == 1 && command[0] == 13) {
+                                command_len = 0;
+                                bzero(command, BUF_SIZE);
+                                break;
+                            }
+                            printf("len %d command: %.*s\n", command_len, command_len, command);
+                            main_cmd(command);
                             command_len = 0;
                             bzero(command, BUF_SIZE);
                         }

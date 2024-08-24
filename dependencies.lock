@@ -1,4 +1,10 @@
 dependencies:
+  espressif/mdns:
+    component_hash: af6306fe65d637a3683d1cf671508fcedd6b05f9ca029a8815abeab64001fb8d
+    source:
+      service_url: https://api.components.espressif.com/
+      type: service
+    version: 1.4.0
   idf:
     component_hash: null
     source:
@@ -10,6 +16,6 @@ dependencies:
       path: /config/esp-idf/examples/bluetooth/nimble/common/nimble_peripheral_utils
       type: local
     version: '*'
-manifest_hash: 1f98af1d0fd3e53b0a8a43a27bcedada2ffe003c9f871e01c9aa785b290e0afc
+manifest_hash: 0901ffccf98217bfcf1a03c6f7dce506a2be1ae321c3ed2bfa5f6407279832f6
 target: esp32s3
 version: 1.0.0

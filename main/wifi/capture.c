@@ -27,6 +27,7 @@
 #include "lwip/err.h"
 #include "esp_netif_types.h"
 #include "lwip/netif.h"
+#include "esp_netif.h"
 
 #include "owl/rx.h"
 #include <string.h>
@@ -218,6 +219,9 @@ void wifi_sniffer_init(void)
         .stack  = netstack_default_awdl,
     };
     esp_netif_t* lowpan6_ble_netif = esp_netif_new(&cfg_awdl);
+	//netif_set_flags(lowpan6_ble_netif, NETIF_FLAG_MLD6);
+	//lowpan6_ble_netif->flags |= NETIF_FLAG_MLD6;
+	esp_netif_create_ip6_linklocal(lowpan6_ble_netif);
 
     awdl_driver_handle lowpan6_ble_driver = awdl_create(&state.awdl_state);
     if (lowpan6_ble_driver != NULL)
@@ -226,6 +230,7 @@ void wifi_sniffer_init(void)
     }
 	
     struct netif* netif = esp_netif_get_netif_impl(lowpan6_ble_netif);
+	netif->flags |= NETIF_FLAG_MLD6;
 	netif_set_up(netif);
     netif_set_link_up(netif);
 	while (!esp_netif_is_netif_up(lowpan6_ble_netif))
@@ -275,6 +280,7 @@ void awdl_receive_frame(const uint8_t *buf, int len) {
 	const struct buf *frame = buf_new_const(buf, len);
 	struct buf *data_arr[MAX_NUM_AMPDU];
 	struct buf **data = &data_arr[0];
+	esp_log_level_set("awdl_rx_data", ESP_LOG_VERBOSE);
 	result = awdl_rx(frame, &data, &state.awdl_state);
 	if (result == RX_OK) {
 		//ESP_LOGI("wifi", "awdl_receive_frame");
@@ -294,17 +300,13 @@ void awdl_receive_frame(const uint8_t *buf, int len) {
 		ESP_LOGI("awdl", "received data packet:"); 
 		struct awdl_packet *packet = (struct awdl_packet *)buf_data(*data_start);
 		packet->ether_type = EndianConvert16(packet->ether_type);
-		packet->len = EndianConvert16(packet->len);
-		for (int i = 0; i < packet->len; i++) {
-    		printf("%02x ", packet->data[i]);
-		}
 		printf("src: %s; ", ether_ntoa(&packet->src));
 		printf("dst: %s; ", ether_ntoa(&packet->dst));
 		printf("ether type: %04x; ", packet->ether_type);
 		printf("len: %i; data: \n",packet->len);
-		//for (int i=0; i<packet.len; i++) {
-		//	printf("%02X ", ((uint8_t *)&packet.data)[i]);
-		//}
+		for (int i=0; i<packet->len; i++) {
+			printf("%02X ", packet->data[i]);
+		}
 		buf_free(*data_start);
 	}
 }
