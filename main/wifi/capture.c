@@ -330,6 +330,7 @@ void wifi_sniffer_init(void)
 	//setup_raw_recv_callback(netif);
 	
     ESP_ERROR_CHECK( mdns_init() );
+	mdns_register_netif(lowpan6_ble_netif);
 	xTaskCreate(mdns_query_task, "mdns_query_task", 8096, NULL, 5, NULL);
 }
 
