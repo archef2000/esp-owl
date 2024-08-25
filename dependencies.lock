@@ -16,6 +16,12 @@ dependencies:
       path: /config/esp-idf/examples/bluetooth/nimble/common/nimble_peripheral_utils
       type: local
     version: '*'
-manifest_hash: 0901ffccf98217bfcf1a03c6f7dce506a2be1ae321c3ed2bfa5f6407279832f6
+  protocol_examples_common:
+    component_hash: null
+    source:
+      path: /config/esp-idf/examples/common_components/protocol_examples_common
+      type: local
+    version: '*'
+manifest_hash: f9e73dfa0be67f9ae256bd8b9c7c30146df52221378570f17ce63d4180b46190
 target: esp32s3
 version: 1.0.0

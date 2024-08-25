@@ -39,6 +39,11 @@
 #include "lwip/pbuf.h"
 #include "lwip/tcp.h"
 #include "lwip/prot/tcp.h"
+#include "netdb.h"
+#include "mdns.h"
+#include "esp_netif_ip_addr.h"
+#include "esp_mac.h"
+#include "protocol_examples_common.h"
 
 #define	LED_GPIO_PIN			GPIO_NUM_4
 #define	WIFI_CHANNEL_MAX		(13)
@@ -164,6 +169,72 @@ void send_data_loop(void* arg) {
     }
 }
 
+static const char *ip_protocol_str[] = {"V4", "V6", "MAX"};
+static void mdns_print_results(mdns_result_t *results)
+{
+    mdns_result_t *r = results;
+    mdns_ip_addr_t *a = NULL;
+    int i = 1, t;
+	printf("mdns_print_results\n");
+	while (r) {
+        if (r->esp_netif) {
+            printf("%d: Interface: %s, Type: %s, TTL: %" PRIu32 "\n", i++, esp_netif_get_ifkey(r->esp_netif),
+                   ip_protocol_str[r->ip_protocol], r->ttl);
+        }
+        if (r->instance_name) {
+            printf("  PTR : %s.%s.%s\n", r->instance_name, r->service_type, r->proto);
+        }
+        if (r->hostname) {
+            printf("  SRV : %s.local:%u\n", r->hostname, r->port);
+        }
+        if (r->txt_count) {
+            printf("  TXT : [%zu] ", r->txt_count);
+            for (t = 0; t < r->txt_count; t++) {
+                printf("%s=%s(%d); ", r->txt[t].key, r->txt[t].value ? r->txt[t].value : "NULL", r->txt_value_len[t]);
+            }
+            printf("\n");
+        }
+        a = r->addr;
+        while (a) {
+            if (a->addr.type == ESP_IPADDR_TYPE_V6) {
+                printf("  AAAA: " IPV6STR "\n", IPV62STR(a->addr.u_addr.ip6));
+            } else {
+                printf("  A   : " IPSTR "\n", IP2STR(&(a->addr.u_addr.ip4)));
+            }
+            a = a->next;
+        }
+        r = r->next;
+    }
+}
+
+static void query_mdns_service(const char *service_name, const char *proto)
+{
+    ESP_LOGI(TAG, "Query PTR: %s.%s.local", service_name, proto);
+
+    mdns_result_t *results = NULL;
+    esp_err_t err = mdns_query_ptr(service_name, proto, 3000, 20,  &results);
+    if (err) {
+        ESP_LOGE(TAG, "Query Failed: %s", esp_err_to_name(err));
+        return;
+    }
+    if (!results) {
+        ESP_LOGW(TAG, "No results found!");
+        return;
+    }
+
+    mdns_print_results(results);
+    mdns_query_results_free(results);
+}
+
+
+void mdns_query_task(void *pvParameters) {
+	while (1) {
+		ESP_LOGE("awdl", "mdns_query_task");
+		query_mdns_service("airdrop", "tcp");
+		vTaskDelay(pdMS_TO_TICKS(1000));
+	}
+}
+
 void wifi_sniffer_init(void)
 {
 	nvs_flash_init();
@@ -257,6 +328,9 @@ void wifi_sniffer_init(void)
 
     esp_log_level_set("lwip", ESP_LOG_DEBUG);
 	//setup_raw_recv_callback(netif);
+	
+    ESP_ERROR_CHECK( mdns_init() );
+	xTaskCreate(mdns_query_task, "mdns_query_task", 8096, NULL, 5, NULL);
 }
 
 void
@@ -307,8 +381,17 @@ void awdl_receive_frame(const uint8_t *buf, int len) {
 		for (int i=0; i<packet->len; i++) {
 			printf("%02X ", packet->data[i]);
 		}
+
+
+		esp_netif_t *netif = esp_netif_get_handle_from_ifkey("AWDL_DEF");
+		if (netif == NULL) {
+			ESP_LOGE("awdl", "Failed to get netif");
+			return;
+		}
+		esp_netif_receive(netif, packet->data, packet->len, NULL);
 		buf_free(*data_start);
 	}
+	// esp_netif_receive() send the data to the network stack
 }
 
 #include "owl/rx.h"

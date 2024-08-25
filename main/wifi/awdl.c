@@ -79,6 +79,7 @@ struct awdl_driver
 
 static void awdl_free_rx_buffer(void* h, void* buffer)
 {
+    printf("awdl_free_rx_buffer\n");
     int rc = os_mbuf_free_chain(buffer);
     if (rc != 0)
     {

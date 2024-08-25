@@ -148,17 +148,19 @@ static void awdl_netif_input(void* h, void* buffer, size_t len, void* eb)
     printf("awdl_netif_input\n");
 
     struct netif* netif    = (struct netif*)h; 
-    struct pbuf* p_buffer = (struct pbuf*)buffer;
+    //struct pbuf* p_buffer = (struct pbuf*)buffer;
     esp_netif_t *esp_netif = esp_netif_get_handle_from_netif_impl(netif);
     struct pbuf *p;
 
-    p = esp_pbuf_allocate(esp_netif, p_buffer->payload, p_buffer->len, NULL);
+    ESP_LOGI(TAG, "awdl_netif_input len=%i", len);
+    p = esp_pbuf_allocate(esp_netif, buffer, len, NULL);
     for (int i = 0; i < p->len; i++)
     {
         printf("%02x ", ((uint8_t*)p->payload)[i]);
     }
     printf("\n\n");
     if (p == NULL) {
+        ESP_LOGE(TAG, "(%s) failed to allocate memory for pbuf", __func__);
         esp_netif_free_rx_buffer(esp_netif, buffer);
         return ESP_NETIF_OPTIONAL_RETURN_CODE(ESP_ERR_NO_MEM);
     }

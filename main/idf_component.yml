@@ -3,5 +3,7 @@ dependencies:
     path: ${IDF_PATH}/examples/bluetooth/nimble/common/nimble_peripheral_utils
   espressif/mdns:
     version: "^1.0.0"
+  protocol_examples_common:
+    path: ${IDF_PATH}/examples/common_components/protocol_examples_common
   #nimble_central_utils:
   #  path: ${IDF_PATH}/examples/bluetooth/nimble/common/nimble_central_utils
