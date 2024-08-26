@@ -230,7 +230,7 @@ static void query_mdns_service(const char *service_name, const char *proto)
 void mdns_query_task(void *pvParameters) {
 	while (1) {
 		ESP_LOGE("awdl", "mdns_query_task");
-		query_mdns_service("airdrop", "tcp");
+		query_mdns_service("_airdrop", "_tcp");
 		vTaskDelay(pdMS_TO_TICKS(1000));
 	}
 }
@@ -331,6 +331,10 @@ void wifi_sniffer_init(void)
 	
     ESP_ERROR_CHECK( mdns_init() );
 	mdns_register_netif(lowpan6_ble_netif);
+
+    ESP_ERROR_CHECK(mdns_netif_action(lowpan6_ble_netif, MDNS_EVENT_ENABLE_IP6 | MDNS_EVENT_ENABLE_IP4));
+    ESP_ERROR_CHECK(mdns_netif_action(lowpan6_ble_netif, MDNS_EVENT_ANNOUNCE_IP4 | MDNS_EVENT_ANNOUNCE_IP6));
+    ESP_ERROR_CHECK(mdns_netif_action(lowpan6_ble_netif, MDNS_EVENT_IP4_REVERSE_LOOKUP | MDNS_EVENT_IP6_REVERSE_LOOKUP));
 	xTaskCreate(mdns_query_task, "mdns_query_task", 8096, NULL, 5, NULL);
 }
 
