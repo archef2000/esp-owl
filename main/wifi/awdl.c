@@ -95,6 +95,7 @@ static esp_err_t awdl_transmit(void* h, void* buffer, size_t len)
         printf("%02x ", ((uint8_t*)buffer)[i]);
     }
     printf("\n");
+    // send data over the network interface
     return ESP_OK;
     //if (driver == NULL || driver->chan == NULL)
     //{

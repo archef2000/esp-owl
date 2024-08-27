@@ -316,7 +316,7 @@ void wifi_sniffer_init(void)
     IP4_ADDR(&ip_info.netmask, 255, 255, 255, 0); // Set your desired Netmask here
     esp_netif_set_ip_info(lowpan6_ble_netif, &ip_info);
 
-	xTaskCreate(send_data_loop, "send_data_loop", 8096, lowpan6_ble_netif, 10, NULL);
+	//xTaskCreate(send_data_loop, "send_data_loop", 8096, lowpan6_ble_netif, 10, NULL);
 	
     // xTaskCreate(tcp_server_task, "tcp_server", 8096, NULL, 5, NULL);
 	// https://github.com/geonavo/lowpan6_ble/blob/main/examples/echo/server/main/main.c#L197
@@ -327,6 +327,8 @@ void wifi_sniffer_init(void)
 
 
     esp_log_level_set("lwip", ESP_LOG_DEBUG);
+    esp_log_level_set("awdl", ESP_LOG_DEBUG);
+
 	//setup_raw_recv_callback(netif);
 	
     ESP_ERROR_CHECK( mdns_init() );

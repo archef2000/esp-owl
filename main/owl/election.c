@@ -87,6 +87,7 @@ void awdl_election_run(struct awdl_election_state *state, const struct awdl_peer
 		if (awdl_election_is_sync_master(peer_state, &state->self_addr))
 			continue; /* reject: do not allow cycles in sync tree */
 		cmp_metric = awdl_election_compare_master(peer_state, master_state);
+		log_info("cmp metric: %d", cmp_metric);
 		if (cmp_metric < 0) {
 			continue; /* reject: lower top master metric */
 		} else if (cmp_metric == 0) {
@@ -99,6 +100,7 @@ void awdl_election_run(struct awdl_election_state *state, const struct awdl_peer
 					continue; /* reject: peer has smaller address */
 			}
 		}
+		log_info("accept");
 		/* accept: otherwise */
 		master_state = peer_state;
 	}

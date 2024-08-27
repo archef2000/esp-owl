@@ -217,7 +217,7 @@ void awdl_neighbor_remove(struct awdl_peer *p, void *_io_state) {
 }
 
 void awdl_clean_peers(struct timer_arg_t *arg) {
-	ESP_LOGD("awdl core", "awdl_clean_peers");
+	ESP_LOGD("awdl", "awdl_clean_peers");
     //int64_t start_time = esp_timer_get_time();
 
 	uint64_t cutoff_time;
@@ -228,7 +228,6 @@ void awdl_clean_peers(struct timer_arg_t *arg) {
 
 	/* TODO for now run election immediately after clean up; might consider seperate timer for this */
 	awdl_election_run(&state->awdl_state.election, &state->awdl_state.peers);
-
 	esp_timer_start_once(arg->handle, state->awdl_state.peers.clean_interval);
 }
 

@@ -64,7 +64,7 @@ static const char* TAG = "awdl_netif";
 
 err_t awdl_netif_linkoutput(struct netif* netif, struct pbuf* p)
 {
-    printf("awdl_netif_linkoutput\n");
+    printf("awdl_netif_linkoutput -> esp_netif_transmit -> driver->transmit (awdl_transmit)\n"); 
     esp_err_t err = esp_netif_transmit(netif->state, p->payload, p->len);
     if (err != ESP_OK)
     {
@@ -87,15 +87,15 @@ err_t awdl_netif_linkoutput(struct netif* netif, struct pbuf* p)
 err_t
 awdl_output(struct netif *netif, struct pbuf *q, const ip6_addr_t *ip6addr)
 {
-    printf("awdl_output\n");
+    printf("awdl_output ->linkoutput; q->len=%i\n", q->len);
     for (int i = 0; i < q->len; i++)
     {
         printf("%02x ", ((uint8_t*)q->payload)[i]);
     }
     printf("\n");
-    return ERR_OK;
-    //err = netif->linkoutput(netif, p_frag);
-    //return err;
+    err_t err;
+    err = netif->linkoutput(netif, q);
+    return err;
 }
 /**
  * @ingroup rfc7668if
