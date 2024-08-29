@@ -4,6 +4,7 @@
 #include "freertos/task.h"
 #include "cli/command.h"
 #include "freertos/queue.h"
+#include "cli/tasks.h"
 
 #define UART_NUM UART_NUM_0
 #define BUF_SIZE (1024)
@@ -11,6 +12,7 @@
 static QueueHandle_t uart_queue;
 
 void uart_event_task(void *pvParameters) {
+    struct availabeTasks *tasks = (struct availabeTasks *)pvParameters;
     char *command = malloc(BUF_SIZE);
     uint8_t command_len = 0;
     uart_event_t event;
@@ -32,7 +34,7 @@ void uart_event_task(void *pvParameters) {
                                 break;
                             }
                             printf("len %d command: %.*s\n", command_len, command_len, command);
-                            main_cmd(command);
+                            main_cmd(command, tasks);
                             command_len = 0;
                             bzero(command, BUF_SIZE);
                         }
@@ -58,7 +60,7 @@ void uart_event_task(void *pvParameters) {
     vTaskDelete(NULL);
 }
 
-void init_uart() {
+void init_uart(struct availabeTasks *tasks) {
     uart_config_t uart_config = {
         .baud_rate = 122500,
         .data_bits = UART_DATA_8_BITS,
@@ -70,5 +72,5 @@ void init_uart() {
     uart_driver_install(UART_NUM, BUF_SIZE * 2, BUF_SIZE * 2, 20, &uart_queue, 0);
     uart_param_config(UART_NUM, &uart_config);
     uart_set_pin(UART_NUM, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
-    xTaskCreate(uart_event_task, "uart_event_task", 2048, NULL, 12, NULL);
+    xTaskCreate(uart_event_task, "uart_event_task", 2048, tasks, 12, NULL);
 }

@@ -44,6 +44,7 @@
 #include "esp_netif_ip_addr.h"
 #include "esp_mac.h"
 #include "protocol_examples_common.h"
+#include "cli/tasks.h"
 
 #define	LED_GPIO_PIN			GPIO_NUM_4
 #define	WIFI_CHANNEL_MAX		(13)
@@ -212,7 +213,7 @@ static void query_mdns_service(const char *service_name, const char *proto)
     ESP_LOGI(TAG, "Query PTR: %s.%s.local", service_name, proto);
 
     mdns_result_t *results = NULL;
-    esp_err_t err = mdns_query_ptr(service_name, proto, 3000, 20,  &results);
+    esp_err_t err = mdns_query_ptr(service_name, proto, 2000, 20,  &results);
     if (err) {
         ESP_LOGE(TAG, "Query Failed: %s", esp_err_to_name(err));
         return;
@@ -235,7 +236,7 @@ void mdns_query_task(void *pvParameters) {
 	}
 }
 
-void wifi_sniffer_init(void)
+void wifi_sniffer_init(struct availabeTasks *tasks)
 {
 	nvs_flash_init();
     	esp_netif_init();
@@ -337,8 +338,9 @@ void wifi_sniffer_init(void)
     ESP_ERROR_CHECK(mdns_netif_action(lowpan6_ble_netif, MDNS_EVENT_ENABLE_IP6 | MDNS_EVENT_ENABLE_IP4));
     ESP_ERROR_CHECK(mdns_netif_action(lowpan6_ble_netif, MDNS_EVENT_ANNOUNCE_IP4 | MDNS_EVENT_ANNOUNCE_IP6));
     ESP_ERROR_CHECK(mdns_netif_action(lowpan6_ble_netif, MDNS_EVENT_IP4_REVERSE_LOOKUP | MDNS_EVENT_IP6_REVERSE_LOOKUP));
-	xTaskCreate(mdns_query_task, "mdns_query_task", 8096, NULL, 5, NULL);
-}
+	xTaskCreate(mdns_query_task, "mdns_query_task", 8096, NULL, 5, tasks->mdns);
+	tasks->mdns_enabled = true;
+} 
 
 void
 wifi_sniffer_set_channel(uint8_t channel)

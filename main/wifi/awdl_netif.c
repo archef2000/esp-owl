@@ -216,8 +216,8 @@ static void awdl_netif_input(void* h, void* buffer, size_t len, void* eb)
     rfc7668_input(p, netif);
     */
 }
-
-void nimble_addr_to_eui64(ble_addr_t const* addr, uint8_t* eui64)
+/*
+void nimble_addr_to_eui64(struct ether_addr const* addr, uint8_t* eui64)
 {
     // NimBLE stores addresses in _reverse_ order. We need to reverse these
     // before doing the EUI64 conversion, otherwise we get incorrect
@@ -240,7 +240,7 @@ void ipv6_create_link_local_from_eui64(uint8_t const* eui64_addr, ip6_addr_t* ds
     IP6_ADDR_PART(dst, 3, eui64_addr[4], eui64_addr[5], eui64_addr[6], eui64_addr[7]);
 }
 
-static inline void configure_netif_addresses(struct netif* netif, ble_addr_t* addr, bool is_peer)
+static inline void configure_netif_addresses(struct netif* netif, struct ether_addr* addr, bool is_peer)
 {
     ESP_LOGD(
         TAG,
@@ -251,7 +251,7 @@ static inline void configure_netif_addresses(struct netif* netif, ble_addr_t* ad
         //debug_print_ble_addr(addr)
 
     uint8_t eui64_addr[8];// TODO: IPv6 is mac
-    nimble_addr_to_eui64(addr, eui64_addr);
+    //nimble_addr_to_eui64(addr, eui64_addr);
 
     if (is_peer)
     {
@@ -278,7 +278,8 @@ static inline void configure_netif_addresses(struct netif* netif, ble_addr_t* ad
     }
 }
 #include "esp_netif_net_stack.h"
-void awdl_netif_up(esp_netif_t* esp_netif, ble_addr_t* peer_addr, ble_addr_t* our_addr)
+#include "owl/ethernet.h"
+void awdl_netif_up(esp_netif_t* esp_netif, struct ether_addr* peer_addr, struct ether_addr* our_addr)
 {
     struct netif* netif = esp_netif_get_netif_impl(esp_netif);
     if (netif == NULL || peer_addr == NULL || our_addr == NULL)
@@ -308,3 +309,4 @@ void awdl_netif_down(esp_netif_t* esp_netif)
     netif_set_down(netif);
     netif_set_link_down(netif);
 }
+*/

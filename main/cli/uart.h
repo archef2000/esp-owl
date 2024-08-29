@@ -1,1 +1,3 @@
-void init_uart(void);
+#include "cli/tasks.h"
+
+void init_uart(struct availabeTasks *tasks);

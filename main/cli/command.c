@@ -3,18 +3,23 @@
 #include "stdlib.h"
 #include <stdio.h>
 #include <ctype.h>
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "cli/tasks.h"
 
 enum COMMANDS {
     BLE_COMMAND,
     AWDL_COMMAND,
     OPENDROP_COMMAND,
+    MDNS_COMMAND,
     COMMAND_LENGTH
 };
 
 char* commands[COMMAND_LENGTH] = {
     "ble",
     "awdl",
-    "opendrop"
+    "opendrop",
+    "mdns"
 };
 
 int getIndexOfString(char* array[], int size, char* str) {
@@ -28,7 +33,7 @@ int getIndexOfString(char* array[], int size, char* str) {
     return -1;
 }
 
-void main_cmd(char* str) {
+void main_cmd(char* str, struct availabeTasks *tasks) {
     str[strcspn(str, "\r\n")] = 0;
     char* command;
     char* arguments[10];
@@ -55,6 +60,27 @@ void main_cmd(char* str) {
         case AWDL_COMMAND:
             break;
         case OPENDROP_COMMAND:
+            break;
+        case MDNS_COMMAND:
+            // first argument is the command
+            // second argument if enable/disable
+            if (arg_count == 1) {
+                if (strcmp(arguments[0], "enable") == 0) {
+                    printf("mdns enable bool: %d\n", tasks->mdns_enabled);
+                    if (tasks->mdns_enabled) {
+                        printf("mdns already enabled\n");
+                        break;
+                    }
+                    vTaskResume(*tasks->mdns);
+                } else if (strcmp(arguments[0], "disable") == 0) {
+                    printf("mdns disable bool: %d\n", tasks->mdns_enabled);
+                    if (tasks->mdns_enabled) {
+                        printf("mdns already disabled\n");
+                        break;
+                    }
+                    vTaskSuspend(*tasks->mdns);
+                }
+            }
             break;
         case -1:
             printf("error\n");

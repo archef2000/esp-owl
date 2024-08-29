@@ -6,9 +6,12 @@
 #include "utils/utils.h"
 #include "wifi/capture.h"
 #include "cli/uart.h"
+#include "cli/tasks.h"
 
 void app_main(void)
 {
-    wifi_sniffer_init();
-    init_uart();
+    struct availabeTasks tasks;
+    tasks.mdns = malloc(sizeof(TaskHandle_t));
+    wifi_sniffer_init(&tasks);
+    init_uart(&tasks);
 }

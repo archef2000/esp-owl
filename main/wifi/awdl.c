@@ -21,9 +21,10 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
 #include "freertos/portmacro.h"
-#include "host/ble_hs.h"
+//#include "host/ble_hs.h"
 //#include "lowpan6_ble_netif.h"
-#include "nimble/ble.h"
+//#include "nimble/ble.h"
+//#include "os/os_mempool.h"
 
 /** The chunk of defines below are used to initialize mbufs later in this module.
  *
@@ -31,7 +32,9 @@
  *  https://mynewt.apache.org/latest/os/core_os/mbuf/mbuf.html
  */
 
+static const char* TAG = "awdl";
 
+/*
 #define MBUF_PKTHDR_OVERHEAD   sizeof(struct os_mbuf_pkthdr)
 #define MBUF_MEMBLOCK_OVERHEAD sizeof(struct os_mbuf) + MBUF_PKTHDR_OVERHEAD
 #define MBUF_NUM_MBUFS         (LOWPAN6_BLE_IPSP_MAX_CHANNELS * LOWPAN6_BLE_IPSP_RX_BUFFER_COUNT)
@@ -40,7 +43,6 @@
 #define MBUF_MEMBLOCK_SIZE     (MBUF_BUF_SIZE + MBUF_MEMBLOCK_OVERHEAD)
 #define MBUF_MEMPOOL_SIZE      OS_MEMPOOL_SIZE(MBUF_NUM_MBUFS, MBUF_MEMBLOCK_SIZE)
 
-static const char* TAG = "awdl";
 
 //! Pool of mbufs, shared by all the channels in this module.
 static struct os_mbuf_pool s_mbuf_pool;
@@ -51,6 +53,7 @@ static struct os_mempool s_mempool;
 //! Memory allocated for our memory pool, above.
 static os_membuf_t s_membuf[MBUF_MEMPOOL_SIZE];
 
+*/
 #define BIT_TX_UNSTALLED (1 << 0)
 static StaticEventGroup_t s_lowpan6_event_group_buffer;
 static EventGroupHandle_t s_lowpan6_event_group;
@@ -79,18 +82,18 @@ struct awdl_driver
 
 static void awdl_free_rx_buffer(void* h, void* buffer)
 {
-    printf("awdl_free_rx_buffer\n");
-    int rc = os_mbuf_free_chain(buffer);
-    if (rc != 0)
-    {
-        ESP_LOGW(TAG, "(%s) failed to free os_mbuf; om=%p rc=%d", __func__, buffer, rc);
-    }
+    ESP_LOGE(TAG, "awdl_free_rx_buffer");
+    //int rc = os_mbuf_free_chain(buffer);
+    //if (rc != 0)
+    //{
+    //    ESP_LOGW(TAG, "(%s) failed to free os_mbuf; om=%p rc=%d", __func__, buffer, rc);
+    //}
 }
 
 static esp_err_t awdl_transmit(void* h, void* buffer, size_t len)
 {
     printf("awdl_transmit\n");
-    struct awdl_driver* driver = (struct awdl_driver*)h;
+    //struct awdl_driver* driver = (struct awdl_driver*)h;
     for (int i = 0; i < len; i++) {
         printf("%02x ", ((uint8_t*)buffer)[i]);
     }
@@ -127,21 +130,21 @@ static esp_err_t awdl_post_attach(esp_netif_t* esp_netif, void* args)
 esp_err_t awdl_init()
 {
     printf("awdl_init\n");
-    int rc =
-        os_mempool_init(&s_mempool, MBUF_NUM_MBUFS, MBUF_MEMBLOCK_SIZE, s_membuf, "awdl");
-    if (rc != 0)
-    {
-        ESP_LOGE(TAG, "(%s) failed to initialize mempool; rc=%d", __func__, rc);
-        return ESP_FAIL;
-    }
+    //int rc =
+    //    os_mempool_init(&s_mempool, MBUF_NUM_MBUFS, MBUF_MEMBLOCK_SIZE, s_membuf, "awdl");
+    //if (rc != 0)
+    //{
+    //    ESP_LOGE(TAG, "(%s) failed to initialize mempool; rc=%d", __func__, rc);
+    //    return ESP_FAIL;
+    //}
 
-    rc = os_mbuf_pool_init(&s_mbuf_pool, &s_mempool, MBUF_MEMBLOCK_SIZE, MBUF_NUM_MBUFS);
-    if (rc != 0)
-    {
-        ESP_LOGE(TAG, "(%s) failed to initialize mbuf pool; rc=%d", __func__, rc);
-        os_mempool_clear(&s_mempool);
-        return ESP_FAIL;
-    }
+    //rc = os_mbuf_pool_init(&s_mbuf_pool, &s_mempool, MBUF_MEMBLOCK_SIZE, MBUF_NUM_MBUFS);
+    //if (rc != 0)
+    //{
+    //    ESP_LOGE(TAG, "(%s) failed to initialize mbuf pool; rc=%d", __func__, rc);
+    //    os_mempool_clear(&s_mempool);
+    //    return ESP_FAIL;
+    //}
 
     s_lowpan6_event_group = xEventGroupCreateStatic(&s_lowpan6_event_group_buffer);
 
@@ -169,7 +172,7 @@ awdl_driver_handle awdl_create( struct awdl_state *state)
 
     driver->base.post_attach = awdl_post_attach;
 
-    driver->conn_handle = BLE_HS_CONN_HANDLE_NONE;
+    //driver->conn_handle = BLE_HS_CONN_HANDLE_NONE;
     driver->chan        = NULL;
     driver->userdata    = (void *)state;
 
@@ -183,7 +186,7 @@ esp_err_t awdl_destroy(awdl_driver_handle driver)
 
 esp_err_t awdl_connect(
     awdl_driver_handle handle,
-    ble_addr_t* addr,
+    struct ether_addr* addr,
     int32_t timeout_ms,
     awdl_event_handler cb,
     void* userdata
