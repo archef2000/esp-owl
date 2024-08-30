@@ -58,34 +58,28 @@ esp_err_t send_data(struct daemon_state *state, uint8_t *data, int len) {
 	buf = buf_new_owned(ETHER_MAX_LEN);
 	struct ether_addr dst;
 	write_ether_addr(buf, ETHER_DST_OFFSET, &dst);
-	struct ether_addr src;
-	write_ether_addr(buf, ETHER_SRC_OFFSET, &src);
-	buf_new_const((const uint8_t *)data, len);
+	// pointer to self address
+	struct ether_addr *src = &state->awdl_state.self_address;
+	write_ether_addr(buf, ETHER_SRC_OFFSET, src);
+	write_bytes(buf, ETHER_LENGTH, data, len);
 
 
-
-	int result = 0;
 	bool is_multicast;
-	buf_take(buf, buf_len(buf) - len);
 	// get dst from IP from awdl list
-	// get src mac from 
-	READ_ETHER_ADDR(buf, ETHER_DST_OFFSET, &dst);
 	is_multicast = dst.ether_addr_octet[0] & 0x01;
 	if (is_multicast) {
 		circular_buf_put(state->tx_queue_multicast, buf);
 		awdl_send_multicast(&state->timer_state.tx_mcast_timer);
-		result |= POLL_NEW_MULTICAST;
 	} else { /* unicast */
 		state->next = buf;
-		result |= POLL_NEW_UNICAST;
 		awdl_send_unicast(&state->timer_state.tx_timer);
 	}
 
 	return ESP_OK;
-wire_error:
-	if (buf)
-		buf_free(buf);
-	return ESP_ERR_TIMEOUT;
+//wire_error:
+//	if (buf)
+//		buf_free(buf);
+//	return ESP_ERR_TIMEOUT;
 }
 
 void timer_task(void *pvParameters) {
@@ -160,7 +154,7 @@ wire_error:
 }
 
 void awdl_send_action(struct daemon_state *state, enum awdl_action_type type) {
-	int64_t start_time = esp_timer_get_time();
+	//int64_t start_time = esp_timer_get_time();
 	int len;
 	uint8_t buf[15535]; 
 	len = awdl_init_full_action_frame(buf, &state->awdl_state, &state->ieee80211_state, type);
@@ -198,14 +192,16 @@ void awdl_switch_channel(struct timer_arg_t *timer) {
 	esp_timer_start_once(timer->handle, next_aw);
 }
 
-void awdl_neighbor_add(struct awdl_peer *p, void *_io_stat) {
+void awdl_neighbor_add(struct awdl_peer *p, void *_daemon_state) {
+	struct daemon_state state = *((struct daemon_state *)_daemon_state);
+	state.awdl_state.peers.ether_addr_list[state.awdl_state.peers.ether_addr_count++] = p->addr;
 	printf("awdl_neighbor_add: ");
 	printf("p->name: %s; ", p->name);
 	printf("country_code: %s\n", p->country_code);
 	// TODO: add to ipv6 neigbor table
 }
 
-void awdl_neighbor_remove(struct awdl_peer *p, void *_io_state) {
+void awdl_neighbor_remove(struct awdl_peer *p, void *_deamon_state) {
 	printf("awdl_neighbor_remove: ");
 	printf("p->name: %s; ", p->name);
 	printf("country_code: %s\n", p->country_code);

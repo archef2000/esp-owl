@@ -264,7 +264,9 @@ void wifi_sniffer_init(struct availabeTasks *tasks)
 	awdl_init_state(&state.awdl_state, "test", &mac, CHAN_OPCLASS_6, clock_time_us());
 
 	state.awdl_state.peer_cb = awdl_neighbor_add;
+	state.awdl_state.peer_cb_data = &state;
 	state.awdl_state.peer_remove_cb = awdl_neighbor_remove;
+	state.awdl_state.peer_remove_cb_data = &state;
 
 	// ieee80211_init_state
 	state.ieee80211_state.sequence_number = 0;

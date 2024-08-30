@@ -54,9 +54,11 @@ struct awdl_peer {
 typedef void (*awdl_peer_cb)(struct awdl_peer *, void *arg);
 
 typedef void *awdl_peers_t;
-
+#define AWDL_PEERS_MAX 32
 struct awdl_peer_state {
 	awdl_peers_t peers;
+	struct ether_addr ether_addr_list[AWDL_PEERS_MAX];
+	int ether_addr_count;
 	uint64_t timeout;
 	uint64_t clean_interval;
 };
