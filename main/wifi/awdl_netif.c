@@ -88,6 +88,7 @@ err_t
 awdl_output(struct netif *netif, struct pbuf *q, const ip6_addr_t *ip6addr)
 {
     printf("awdl_output ->linkoutput; q->len=%i\n", q->len);
+    // make output compatible with 
     for (int i = 0; i < q->len; i++)
     {
         printf("%02x ", ((uint8_t*)q->payload)[i]);

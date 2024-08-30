@@ -90,6 +90,36 @@ void host_device_ready(void *arg, esp_event_base_t event_base, int32_t event_id,
 		awdl_send_unicast(&state->timer_state.tx_timer);
 }
 
+esp_err_t send_data(uint8_t *data, int len) {
+	
+	printf("send_data\n");
+	if (!state->next) {
+		printf("send_data: no data\n");
+		return ESP_ERR_NO_MEM; // queue full: ESP_ERR_TIMEOUT
+	}
+	struct buf *buf = buf_new_const((const uint8_t *)data, len);
+
+	int result = 0;
+	bool is_multicast;
+	struct ether_addr dst;
+	buf_take(buf, buf_len(buf) - len);
+	READ_ETHER_ADDR(buf, ETHER_DST_OFFSET, &dst);
+	is_multicast = dst.ether_addr_octet[0] & 0x01;
+	if (is_multicast) {
+		circular_buf_put(state->tx_queue_multicast, buf);
+		result |= POLL_NEW_MULTICAST;
+	} else { /* unicast */
+		state->next = buf;
+		result |= POLL_NEW_UNICAST;
+	}
+
+	return ESP_OK;
+wire_error:
+	if (buf)
+		buf_free(buf);
+	return ESP_ERR_TIMEOUT;
+}
+
 void timer_task(void *pvParameters) {
     struct timer_arg_t *arg = (struct timer_arg_t *)pvParameters;
 	int64_t start_time = esp_timer_get_time();
