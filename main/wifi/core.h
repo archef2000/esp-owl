@@ -71,7 +71,6 @@ void awdl_schedule(struct daemon_state *state);
 void wlan_device_ready(struct ev_loop *loop, ev_io *handle, int revents);
 
 */
-void host_device_ready(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data);
 
 void awdl_send_action(struct daemon_state *state, enum awdl_action_type type);
 

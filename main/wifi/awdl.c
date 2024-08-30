@@ -21,6 +21,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
 #include "freertos/portmacro.h"
+#include "wifi/core.h"
 //#include "host/ble_hs.h"
 //#include "lowpan6_ble_netif.h"
 //#include "nimble/ble.h"
@@ -55,8 +56,8 @@ static os_membuf_t s_membuf[MBUF_MEMPOOL_SIZE];
 
 */
 #define BIT_TX_UNSTALLED (1 << 0)
-static StaticEventGroup_t s_lowpan6_event_group_buffer;
-static EventGroupHandle_t s_lowpan6_event_group;
+//static StaticEventGroup_t s_lowpan6_event_group_buffer;
+//static EventGroupHandle_t s_lowpan6_event_group;
 
 /** LoWPAN6 BLE driver
  *
@@ -93,13 +94,15 @@ static void awdl_free_rx_buffer(void* h, void* buffer)
 static esp_err_t awdl_transmit(void* h, void* buffer, size_t len)
 {
     printf("awdl_transmit\n");
-    //struct awdl_driver* driver = (struct awdl_driver*)h;
+    struct awdl_driver* driver = (struct awdl_driver*)h;
+    struct daemon_state *state = (struct daemon_state *)driver->userdata;
     for (int i = 0; i < len; i++) {
         printf("%02x ", ((uint8_t*)buffer)[i]);
     }
     printf("\n");
     // send data over the network interface
     return ESP_OK;
+    
     //if (driver == NULL || driver->chan == NULL)
     //{
     //    return ESP_ERR_INVALID_STATE;
@@ -126,7 +129,7 @@ static esp_err_t awdl_post_attach(esp_netif_t* esp_netif, void* args)
 
     return err;
 }
-
+/*
 esp_err_t awdl_init()
 {
     printf("awdl_init\n");
@@ -158,8 +161,9 @@ esp_err_t awdl_init()
 
     return ESP_OK;
 }
+*/
 
-awdl_driver_handle awdl_create( struct awdl_state *state)
+awdl_driver_handle awdl_create( struct daemon_state *state)
 {
     ESP_LOGI(TAG, "(%s) creating awdl driver", __func__);
 

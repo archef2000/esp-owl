@@ -35,10 +35,9 @@ ESP_EVENT_DEFINE_BASE(AWDL_EVENT_BASE);
 
 #define SIGSTATS SIGUSR1
 
-#define ETHER_LENGTH 14
+#define ETHER_LENGTH 12
 #define ETHER_DST_OFFSET 0
 #define ETHER_SRC_OFFSET 6
-#define ETHER_ETHERTYPE_OFFSET 12
 
 #define POLL_NEW_UNICAST 0x1
 #define POLL_NEW_MULTICAST 0x2
@@ -49,68 +48,37 @@ static void timer_rearm(esp_timer_handle_t *timer_handle, uint64_t usec) {
 	esp_timer_start_once(*timer_handle, usec);
 }
 
-static int poll_host_device(struct daemon_state *state) {
-	struct buf *buf = NULL;
-	int result = 0;
-	while (!state->next && !circular_buf_full(state->tx_queue_multicast)) {
-		buf = buf_new_owned(ETHER_MAX_LEN);
-		int len = buf_len(buf);
-		if (host_recv(&state->io, (uint8_t *) buf_data(buf), &len) < 0) {
-			goto wire_error;
-		} else {
-			bool is_multicast;
-			struct ether_addr dst;
-			buf_take(buf, buf_len(buf) - len);
-			READ_ETHER_ADDR(buf, ETHER_DST_OFFSET, &dst);
-			is_multicast = dst.ether_addr_octet[0] & 0x01;
-			if (is_multicast) {
-				circular_buf_put(state->tx_queue_multicast, buf);
-				result |= POLL_NEW_MULTICAST;
-			} else { /* unicast */
-				state->next = buf;
-				result |= POLL_NEW_UNICAST;
-			}
-		}
-	}
-	return result;
-wire_error:
-	if (buf)
-		buf_free(buf);
-	return result;
-}
-
-void host_device_ready(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data) {
-	struct timer_arg_t *timer = (struct timer_arg_t *)arg;
-	struct daemon_state *state = (struct daemon_state *)timer->data;
-
-	int poll_result = poll_host_device(state); /* fill TX queues */
-	if (poll_result & POLL_NEW_MULTICAST)
-		awdl_send_multicast(&state->timer_state.tx_mcast_timer);
-	if (poll_result & POLL_NEW_UNICAST)
-		awdl_send_unicast(&state->timer_state.tx_timer);
-}
-
-esp_err_t send_data(uint8_t *data, int len) {
-	
+esp_err_t send_data(struct daemon_state *state, uint8_t *data, int len) {
 	printf("send_data\n");
-	if (!state->next) {
-		printf("send_data: no data\n");
+	if (state->next || circular_buf_full(state->tx_queue_multicast)) {
+		printf("send_data: queue full\n");
 		return ESP_ERR_NO_MEM; // queue full: ESP_ERR_TIMEOUT
 	}
-	struct buf *buf = buf_new_const((const uint8_t *)data, len);
+	struct buf *buf = NULL;
+	buf = buf_new_owned(ETHER_MAX_LEN);
+	struct ether_addr dst;
+	write_ether_addr(buf, ETHER_DST_OFFSET, &dst);
+	struct ether_addr src;
+	write_ether_addr(buf, ETHER_SRC_OFFSET, &src);
+	buf_new_const((const uint8_t *)data, len);
+
+
 
 	int result = 0;
 	bool is_multicast;
-	struct ether_addr dst;
 	buf_take(buf, buf_len(buf) - len);
+	// get dst from IP from awdl list
+	// get src mac from 
 	READ_ETHER_ADDR(buf, ETHER_DST_OFFSET, &dst);
 	is_multicast = dst.ether_addr_octet[0] & 0x01;
 	if (is_multicast) {
 		circular_buf_put(state->tx_queue_multicast, buf);
+		awdl_send_multicast(&state->timer_state.tx_mcast_timer);
 		result |= POLL_NEW_MULTICAST;
 	} else { /* unicast */
 		state->next = buf;
 		result |= POLL_NEW_UNICAST;
+		awdl_send_unicast(&state->timer_state.tx_timer);
 	}
 
 	return ESP_OK;
@@ -165,12 +133,10 @@ int awdl_send_data(const struct buf *buf, const struct io_state *io_state,
                    struct awdl_state *awdl_state, struct ieee80211_state *ieee80211_state) {
 	uint8_t awdl_data[65535];
 	int awdl_data_len;
-	uint16_t ethertype;
 	struct ether_addr src, dst;
 	uint64_t now;
 	uint16_t period, slot, tu;
 
-	READ_BE16(buf, ETHER_ETHERTYPE_OFFSET, &ethertype);
 	READ_ETHER_ADDR(buf, ETHER_DST_OFFSET, &dst);
 	READ_ETHER_ADDR(buf, ETHER_SRC_OFFSET, &src);
 
@@ -320,9 +286,6 @@ void awdl_send_unicast(struct timer_arg_t *timer) {
 	if (state->next) {
 		ESP_LOGW(TAG, "awdl_send_unicast: retry in %lu TU", ieee80211_usec_to_tu(sec_to_usec(in)));
 		timer_rearm(&timer->handle, in);
-	} else {
-		/* poll for more frames to keep queue full */
-		esp_event_post(AWDL_EVENT_BASE, READ_HOST, NULL, 0, 10);
 	}
 }
 
@@ -352,9 +315,6 @@ void awdl_send_multicast(struct timer_arg_t *timer) {
 	if (!circular_buf_empty(state->tx_queue_multicast)) {
 		log_trace("awdl_send_multicast: retry in %lu TU", ieee80211_usec_to_tu(sec_to_usec(in)));
 		timer_rearm(&timer->handle, in);
-	} else {
-		/* poll for more frames to keep queue full */
-		esp_event_post(AWDL_EVENT_BASE, READ_HOST, NULL, 0, 10);
 	}
 }
 

@@ -97,7 +97,7 @@ const uint8_t answer_query[46] = {
 
 #define TAG "custom_netif_example"
 
-void send_data(esp_netif_t *netif) {
+void send_data_test(esp_netif_t *netif) {
     uint8_t data[] = {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 
                       0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10, 0x11, 0x12, 0x13, 0x14, 
                       0x15, 0x16, 0x17, 0x18, 0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E, 
@@ -164,7 +164,7 @@ void send_data_loop(void* arg) {
 	esp_netif_t* lowpan6_ble_netif = (esp_netif_t*)arg;
     while (1) {
 		printf("\n");
-        send_data(lowpan6_ble_netif);
+        send_data_test(lowpan6_ble_netif);
 		//send_raw_tcp_packet(lowpan6_ble_netif);
         vTaskDelay(5000/portTICK_PERIOD_MS);
     }
@@ -295,7 +295,7 @@ void wifi_sniffer_init(struct availabeTasks *tasks)
 	//lowpan6_ble_netif->flags |= NETIF_FLAG_MLD6;
 	esp_netif_create_ip6_linklocal(lowpan6_ble_netif);
 
-    awdl_driver_handle lowpan6_ble_driver = awdl_create(&state.awdl_state);
+    awdl_driver_handle lowpan6_ble_driver = awdl_create(&state);
     if (lowpan6_ble_driver != NULL)
     {
         ESP_ERROR_CHECK(esp_netif_attach(lowpan6_ble_netif, lowpan6_ble_driver));
