@@ -30,9 +30,8 @@
 #include "lwip/inet.h"
 #include <stdbool.h>
 
-#define ETHER_LENGTH 12
+#define ETHER_LENGTH 6
 #define ETHER_DST_OFFSET 0
-#define ETHER_SRC_OFFSET 6
 
 struct in6_addr ether_addr_to_in6_addr(struct ether_addr *addr);
 

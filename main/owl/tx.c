@@ -388,6 +388,9 @@ int awdl_init_full_action_frame(uint8_t *buf, struct awdl_state *state, struct i
 
 #include <stdio.h>
 
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+
 int awdl_init_full_data_frame(uint8_t *buf, const struct ether_addr *src, const struct ether_addr *dst,
                               const uint8_t *payload, unsigned int plen,
                               struct awdl_state *state, struct ieee80211_state *ieee80211_state) {
@@ -398,7 +401,11 @@ int awdl_init_full_data_frame(uint8_t *buf, const struct ether_addr *src, const 
 	ptr += ieee80211_init_awdl_data_hdr(ptr, src, dst, ieee80211_state);
 	ptr += llc_init_awdl_hdr(ptr);
 	ptr += awdl_init_data(ptr, state);
+	printf("awdl_send_multicast: can send now\n");
+	printf("Task watermark: %d\n", uxTaskGetStackHighWaterMark(NULL));
 	memcpy(ptr, payload, plen);
+	printf("Task watermark: %d\n", uxTaskGetStackHighWaterMark(NULL));
+	vTaskDelay(1000/portTICK_PERIOD_MS);
 	ptr += plen;
 	if (ieee80211_state->fcs) {
 		printf("ieee80211_add_fcs\n");

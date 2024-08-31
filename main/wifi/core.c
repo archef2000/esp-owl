@@ -95,11 +95,11 @@ void print_ether_addr(struct ether_addr *addr) {
 
 int awdl_send_data(const struct buf *buf, const struct io_state *io_state,
                    struct awdl_state *awdl_state, struct ieee80211_state *ieee80211_state) {
-	uint8_t awdl_data[200];
+	uint8_t awdl_data[2000];
 	int awdl_data_len;
 	struct ether_addr src, dst;
 	READ_ETHER_ADDR(buf, ETHER_DST_OFFSET, &dst);
-	READ_ETHER_ADDR(buf, ETHER_SRC_OFFSET, &src);
+	memcpy(&awdl_state->self_address, &src, sizeof(struct ether_addr));
 	buf_strip(buf, ETHER_LENGTH);
 	awdl_data_len = awdl_init_full_data_frame(awdl_data, &src, &dst, buf_data(buf), buf_len(buf), awdl_state, ieee80211_state);
 	awdl_state->stats.tx_data++;

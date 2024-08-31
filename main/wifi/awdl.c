@@ -116,13 +116,15 @@ static esp_err_t awdl_transmit(void* h, void* buffer, size_t len)
         //dst_mac.ether_addr_octet[5] = 0xfb;
     }
 	struct buf *buf = NULL;
-	buf = buf_new_owned(ETHER_MAX_LEN);
+	buf = buf_new_owned(ETHER_LENGTH+len);
 	write_ether_addr(buf, ETHER_DST_OFFSET, &dst_mac);
-	struct ether_addr *src = &state->awdl_state.self_address;
-	write_ether_addr(buf, ETHER_SRC_OFFSET, src);
 	write_bytes(buf, ETHER_LENGTH, buffer, len);
+    printf("%d\n",buf_len(buf));
     if (is_multicast) {
-        printf("awdl_transmit: is_multicast\n");
+        printf("awdl_transmit: is_multicast len=%i\n", len);
+        for (int i = 0; i < len; i++)
+            printf("%02x ", ((uint8_t *)buffer)[i]);
+        printf("\n");
 		circular_buf_put(state->tx_queue_multicast, buf);
         esp_timer_start_once(state->timer_state.tx_mcast_timer.handle, 0);
 	} else { // unicast 
