@@ -30,6 +30,7 @@
 #include "esp_timer.h"
 #include "esp_log.h"
 #include "lwip/inet.h"
+#include <stdbool.h>
 
 ESP_EVENT_DEFINE_BASE(AWDL_EVENT_BASE);
 #define READ_HOST 0x34987650
@@ -86,30 +87,26 @@ void timer_init(struct timer_arg_t *timer, timer_cb_t cb, uint64_t in, bool repe
 		esp_timer_start_once(timer->handle, in);
 }
 
+void print_ether_addr(struct ether_addr *addr) {
+	char *ether_str = malloc(sizeof(char) * INET6_ADDRSTRLEN);
+	ether_addr_to_string(ether_str, *addr);
+	printf("ether_addr: %s\n", ether_str);
+}
+
 int awdl_send_data(const struct buf *buf, const struct io_state *io_state,
                    struct awdl_state *awdl_state, struct ieee80211_state *ieee80211_state) {
-	uint8_t awdl_data[65535];
+	uint8_t awdl_data[200];
 	int awdl_data_len;
 	struct ether_addr src, dst;
-	uint64_t now;
-	uint16_t period, slot, tu;
-
 	READ_ETHER_ADDR(buf, ETHER_DST_OFFSET, &dst);
 	READ_ETHER_ADDR(buf, ETHER_SRC_OFFSET, &src);
-
 	buf_strip(buf, ETHER_LENGTH);
-	awdl_data_len = awdl_init_full_data_frame(awdl_data, &src, &dst,
-	                                          buf_data(buf), buf_len(buf),
-	                                          awdl_state, ieee80211_state);
-	now = clock_time_us();
-	period = awdl_sync_current_eaw(now, &awdl_state->sync) / AWDL_CHANSEQ_LENGTH;
-	slot = awdl_sync_current_eaw(now, &awdl_state->sync) % AWDL_CHANSEQ_LENGTH;
-	tu = awdl_sync_next_aw_tu(now, &awdl_state->sync);
-	log_trace("Send data (len %d) to %s (%u.%u.%u)", awdl_data_len,
-	          ether_ntoa(&dst), period, slot, tu);
+	awdl_data_len = awdl_init_full_data_frame(awdl_data, &src, &dst, buf_data(buf), buf_len(buf), awdl_state, ieee80211_state);
 	awdl_state->stats.tx_data++;
-	if (wlan_send(io_state, awdl_data, awdl_data_len) < 0)
+	if (wlan_send(io_state, awdl_data, awdl_data_len) < 0) {
+		printf("awdl_send_data: wlan_send error\n");
 		return TX_FAIL;
+	}
 	return TX_OK;
 
 wire_error:
@@ -320,8 +317,8 @@ void awdl_send_multicast(struct timer_arg_t *timer) {
 	uint64_t now = clock_time_us();
 	double in = 0;
 
+	in = awdl_can_send_in(awdl_state, now, AWDL_MULTICAST_GUARD_TU);
 	if (!circular_buf_empty(state->tx_queue_multicast)) { /* we have something to send */
-		in = awdl_can_send_in(awdl_state, now, AWDL_MULTICAST_GUARD_TU);
 		if (awdl_is_multicast_eaw(awdl_state, now) && (in == 0)) { /* we can send now */
 			void *next;
 			circular_buf_get(state->tx_queue_multicast, &next, 0);
@@ -338,7 +335,7 @@ void awdl_send_multicast(struct timer_arg_t *timer) {
 
 	/* rearm if more multicast frames available */
 	if (!circular_buf_empty(state->tx_queue_multicast)) {
-		log_trace("awdl_send_multicast: retry in %lu TU", ieee80211_usec_to_tu(sec_to_usec(in)));
+		log_debug("awdl_send_multicast: retry in %lu TU", ieee80211_usec_to_tu(sec_to_usec(in)));
 		timer_rearm(&timer->handle, in);
 	}
 }

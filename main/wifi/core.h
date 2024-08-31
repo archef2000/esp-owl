@@ -28,6 +28,7 @@
 #include "esp_timer.h"
 #include "esp_event.h"
 #include "lwip/inet.h"
+#include <stdbool.h>
 
 #define ETHER_LENGTH 12
 #define ETHER_DST_OFFSET 0
