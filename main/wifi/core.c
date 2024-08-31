@@ -36,10 +36,6 @@ ESP_EVENT_DEFINE_BASE(AWDL_EVENT_BASE);
 
 #define SIGSTATS SIGUSR1
 
-#define ETHER_LENGTH 12
-#define ETHER_DST_OFFSET 0
-#define ETHER_SRC_OFFSET 6
-
 #define POLL_NEW_UNICAST 0x1
 #define POLL_NEW_MULTICAST 0x2
 
@@ -47,40 +43,6 @@ ESP_EVENT_DEFINE_BASE(AWDL_EVENT_BASE);
 
 static void timer_rearm(esp_timer_handle_t *timer_handle, uint64_t usec) {
 	esp_timer_start_once(*timer_handle, usec);
-}
-
-esp_err_t send_data(struct daemon_state *state, uint8_t *data, int len) {
-	printf("send_data\n");
-	if (state->next || circular_buf_full(state->tx_queue_multicast)) {
-		printf("send_data: queue full\n");
-		return ESP_ERR_NO_MEM; // queue full: ESP_ERR_TIMEOUT
-	}
-	struct buf *buf = NULL;
-	buf = buf_new_owned(ETHER_MAX_LEN);
-	struct ether_addr dst;
-	write_ether_addr(buf, ETHER_DST_OFFSET, &dst);
-	// pointer to self address
-	struct ether_addr *src = &state->awdl_state.self_address;
-	write_ether_addr(buf, ETHER_SRC_OFFSET, src);
-	write_bytes(buf, ETHER_LENGTH, data, len);
-
-
-	bool is_multicast;
-	// get dst from IP from awdl list
-	is_multicast = dst.ether_addr_octet[0] & 0x01;
-	if (is_multicast) {
-		circular_buf_put(state->tx_queue_multicast, buf);
-		awdl_send_multicast(&state->timer_state.tx_mcast_timer);
-	} else { /* unicast */
-		state->next = buf;
-		awdl_send_unicast(&state->timer_state.tx_timer);
-	}
-
-	return ESP_OK;
-//wire_error:
-//	if (buf)
-//		buf_free(buf);
-//	return ESP_ERR_TIMEOUT;
 }
 
 void timer_task(void *pvParameters) {
@@ -197,25 +159,31 @@ struct in6_addr ether_addr_to_in6_addr(struct ether_addr *addr) {
 	struct in6_addr ret;
 	ret.s6_addr[0] = 0xfe;
 	ret.s6_addr[1] = 0x80;
-	ret.s6_addr[2] = addr->ether_addr_octet[0] ^ 0x02;
-	ret.s6_addr[3] = addr->ether_addr_octet[1];
-	ret.s6_addr[4] = addr->ether_addr_octet[2];
-	ret.s6_addr[5] = 0xff;
-	ret.s6_addr[6] = 0xfe;
-	ret.s6_addr[7] = addr->ether_addr_octet[3];
-	ret.s6_addr[8] = addr->ether_addr_octet[4];
-	ret.s6_addr[9] = addr->ether_addr_octet[5];
+	ret.s6_addr[2] = 0x00;
+	ret.s6_addr[3] = 0x00;
+	ret.s6_addr[4] = 0x00;
+	ret.s6_addr[5] = 0x00;
+	ret.s6_addr[6] = 0x00;
+	ret.s6_addr[7] = 0x00;
+	ret.s6_addr[8] = addr->ether_addr_octet[0] ^ 0x02;
+	ret.s6_addr[9] = addr->ether_addr_octet[1];
+	ret.s6_addr[10] = addr->ether_addr_octet[2];
+	ret.s6_addr[11] = 0xff;
+	ret.s6_addr[12] = 0xfe;
+	ret.s6_addr[13] = addr->ether_addr_octet[3];
+	ret.s6_addr[14] = addr->ether_addr_octet[4];
+	ret.s6_addr[15] = addr->ether_addr_octet[5];
 	return ret;
 }
 
-struct ether_addr in6_addr_to_ether_addr(struct in6_addr addr) {
+struct ether_addr in6_addr_to_ether_addr(struct in6_addr *addr) {
 	struct ether_addr ret;
-	ret.ether_addr_octet[0] = addr.s6_addr[2] ^ 0x02;
-	ret.ether_addr_octet[1] = addr.s6_addr[3];
-	ret.ether_addr_octet[2] = addr.s6_addr[4];
-	ret.ether_addr_octet[3] = addr.s6_addr[5];
-	ret.ether_addr_octet[4] = addr.s6_addr[6];
-	ret.ether_addr_octet[5] = addr.s6_addr[7];
+	ret.ether_addr_octet[0] = addr->s6_addr[8] ^ 0x02;
+	ret.ether_addr_octet[1] = addr->s6_addr[9];
+	ret.ether_addr_octet[2] = addr->s6_addr[10];
+	ret.ether_addr_octet[3] = addr->s6_addr[13];
+	ret.ether_addr_octet[4] = addr->s6_addr[14];
+	ret.ether_addr_octet[5] = addr->s6_addr[15];
 	return ret;
 }
 

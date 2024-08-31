@@ -22,6 +22,7 @@
 #include "freertos/event_groups.h"
 #include "freertos/portmacro.h"
 #include "wifi/core.h"
+#include "owl/ethernet.h"
 //#include "host/ble_hs.h"
 //#include "lowpan6_ble_netif.h"
 //#include "nimble/ble.h"
@@ -96,17 +97,54 @@ static esp_err_t awdl_transmit(void* h, void* buffer, size_t len)
     printf("awdl_transmit\n");
     struct awdl_driver* driver = (struct awdl_driver*)h;
     struct daemon_state *state = (struct daemon_state *)driver->userdata;
+	if (state->next || circular_buf_full(state->tx_queue_multicast)) {
+		printf("send_data: queue full\n");
+		return ESP_ERR_NO_MEM; // queue full: ESP_ERR_TIMEOUT
+	}
     for (int i = 0; i < len; i++) {
         printf("%02x ", ((uint8_t*)buffer)[i]);
     }
     printf("\n");
+    struct in6_addr *dst_address = mem_malloc(sizeof(struct ip6_addr));
+    struct ether_addr dst_mac = in6_addr_to_ether_addr(dst_address);
+    memcpy(dst_address, buffer + 24, 16);
+    // multicast address 33:33:80:00:00:fb
+	bool is_multicast;
+    if (ip6_addr_ismulticast((ip6_addr_t *)dst_address)) {
+        // TODO: check if the packet is a multicast packet
+        printf("multicast packet\n");
+        is_multicast = true;
+        printf("dst_mac: %s\n", ether_ntoa(&dst_mac));
+        dst_mac.ether_addr_octet[0] = 0x33;
+        dst_mac.ether_addr_octet[1] = 0x33;
+        dst_mac.ether_addr_octet[2] = 0x80;
+        dst_mac.ether_addr_octet[3] = 0x00;
+        dst_mac.ether_addr_octet[4] = 0x00;
+        dst_mac.ether_addr_octet[5] = 0xfb;
+    }
+    // print ipv6 dst address
+	char *ipv6_addr_str = malloc(sizeof(char) * INET6_ADDRSTRLEN);
+	in6_addr_to_string(ipv6_addr_str, *dst_address);
+	printf("pv6_addr: %s\n", ipv6_addr_str);
+
+    printf("dst_mac: %s\n", ether_ntoa(&dst_mac));
+
+	struct buf *buf = NULL;
+	buf = buf_new_owned(ETHER_MAX_LEN);
+	write_ether_addr(buf, ETHER_DST_OFFSET, &dst_mac);
+	struct ether_addr *src = &state->awdl_state.self_address;
+	write_ether_addr(buf, ETHER_SRC_OFFSET, src);
+	write_bytes(buf, ETHER_LENGTH, buffer, len);
+
+	if (is_multicast) {
+		circular_buf_put(state->tx_queue_multicast, buf);
+		awdl_send_multicast(&state->timer_state.tx_mcast_timer);
+	} else { // unicast 
+		state->next = buf;
+		awdl_send_unicast(&state->timer_state.tx_timer);
+	}
     // send data over the network interface
     return ESP_OK;
-    
-    //if (driver == NULL || driver->chan == NULL)
-    //{
-    //    return ESP_ERR_INVALID_STATE;
-    //}
 }
 
 static esp_err_t awdl_post_attach(esp_netif_t* esp_netif, void* args)

@@ -29,9 +29,13 @@
 #include "esp_event.h"
 #include "lwip/inet.h"
 
+#define ETHER_LENGTH 12
+#define ETHER_DST_OFFSET 0
+#define ETHER_SRC_OFFSET 6
+
 struct in6_addr ether_addr_to_in6_addr(struct ether_addr *addr);
 
-struct ether_addr in6_addr_to_ether_addr(struct in6_addr addr);
+struct ether_addr in6_addr_to_ether_addr(struct in6_addr *addr);
 
 void in6_addr_to_string(char *buf, struct in6_addr addr);
 

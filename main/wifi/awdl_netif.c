@@ -21,6 +21,7 @@
 #include "netif/lowpan6_ble.h"
 #include "lwip/netif.h"
 #include "lwip/ip6_addr.h"
+#include "wifi/core.h"
 
 static err_t awdl_netif_init(struct netif* netif);
 static void awdl_netif_input(void* h, void* buffer, size_t len, void* eb);
@@ -66,13 +67,6 @@ static const char* TAG = "awdl_netif";
 err_t awdl_netif_linkoutput(struct netif* netif, struct pbuf* p)
 {
     printf("awdl_netif_linkoutput -> esp_netif_transmit -> driver->transmit (awdl_transmit)\n");
-    struct ip6_addr *dst = mem_malloc(sizeof(struct ip6_addr));
-    memcpy(dst, p->payload + 24, 16);
-    // multicast address 33:33:80:00:00:fb
-    if (ip6_addr_ismulticast(dst)) {
-        // TODO: check if the packet is a multicast packet
-        printf("multicast packet\n");
-    }
     esp_err_t err = esp_netif_transmit(netif->state, p->payload, p->len);
     if (err != ESP_OK)
     {
