@@ -27,6 +27,15 @@
 #include "io.h"
 #include "esp_timer.h"
 #include "esp_event.h"
+#include "lwip/inet.h"
+
+struct in6_addr ether_addr_to_in6_addr(struct ether_addr *addr);
+
+struct ether_addr in6_addr_to_ether_addr(struct in6_addr addr);
+
+void in6_addr_to_string(char *buf, struct in6_addr addr);
+
+void ether_addr_to_string(char *buf, struct ether_addr addr);
 
 struct timer_arg_t;
 

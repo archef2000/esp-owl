@@ -208,12 +208,27 @@ struct in6_addr ether_addr_to_in6_addr(struct ether_addr *addr) {
 	return ret;
 }
 
+struct ether_addr in6_addr_to_ether_addr(struct in6_addr addr) {
+	struct ether_addr ret;
+	ret.ether_addr_octet[0] = addr.s6_addr[2] ^ 0x02;
+	ret.ether_addr_octet[1] = addr.s6_addr[3];
+	ret.ether_addr_octet[2] = addr.s6_addr[4];
+	ret.ether_addr_octet[3] = addr.s6_addr[5];
+	ret.ether_addr_octet[4] = addr.s6_addr[6];
+	ret.ether_addr_octet[5] = addr.s6_addr[7];
+	return ret;
+}
+
 void in6_addr_to_string(char *buf, struct in6_addr addr) {
 	sprintf(buf, "%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x",
 	        addr.s6_addr[0], addr.s6_addr[1], addr.s6_addr[2], addr.s6_addr[3],
 	        addr.s6_addr[4], addr.s6_addr[5], addr.s6_addr[6], addr.s6_addr[7],
 	        addr.s6_addr[8], addr.s6_addr[9], addr.s6_addr[10], addr.s6_addr[11],
 	        addr.s6_addr[12], addr.s6_addr[13], addr.s6_addr[14], addr.s6_addr[15]);
+}
+
+void ether_addr_to_string(char *buf, struct ether_addr addr) {
+	sprintf(buf, "%02x:%02x:%02x:%02x:%02x:%02x", addr.ether_addr_octet[0], addr.ether_addr_octet[1], addr.ether_addr_octet[2], addr.ether_addr_octet[3], addr.ether_addr_octet[4], addr.ether_addr_octet[5]);
 }
 
 int find_element_in_ether_array(struct ether_addr *array, int array_length, struct ether_addr addr){
@@ -236,7 +251,7 @@ void awdl_neighbor_add(struct awdl_peer *p, void *_daemon_state) {
 	struct daemon_state state = *((struct daemon_state *)_daemon_state);
 	state.awdl_state.peers.ether_addr_list[state.awdl_state.peers.ether_addr_count++] = p->addr;
 	char *ipv6_addr = malloc(sizeof(char) * INET6_ADDRSTRLEN);
-	in6_addr_to_string(ipv6_addr, ether_addr_to_in6_addr(&p->addr));
+	in6_addr_to_string(ipv6_addr, ether_addr_to_in6_addr((struct ether_addr *)&p->addr));
 	printf("awdl_neighbor_add: %s; ipv6_addr: %s\n", p->name, ipv6_addr);
 	printf("awdl_neighbor_add: ");
 	printf("p->name: %s; ", p->name);
