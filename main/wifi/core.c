@@ -29,6 +29,7 @@
 #include <signal.h>
 #include "esp_timer.h"
 #include "esp_log.h"
+#include "lwip/inet.h"
 
 ESP_EVENT_DEFINE_BASE(AWDL_EVENT_BASE);
 #define READ_HOST 0x34987650
@@ -192,16 +193,61 @@ void awdl_switch_channel(struct timer_arg_t *timer) {
 	esp_timer_start_once(timer->handle, next_aw);
 }
 
+struct in6_addr ether_addr_to_in6_addr(struct ether_addr *addr) {
+	struct in6_addr ret;
+	ret.s6_addr[0] = 0xfe;
+	ret.s6_addr[1] = 0x80;
+	ret.s6_addr[2] = addr->ether_addr_octet[0] ^ 0x02;
+	ret.s6_addr[3] = addr->ether_addr_octet[1];
+	ret.s6_addr[4] = addr->ether_addr_octet[2];
+	ret.s6_addr[5] = 0xff;
+	ret.s6_addr[6] = 0xfe;
+	ret.s6_addr[7] = addr->ether_addr_octet[3];
+	ret.s6_addr[8] = addr->ether_addr_octet[4];
+	ret.s6_addr[9] = addr->ether_addr_octet[5];
+	return ret;
+}
+
+void in6_addr_to_string(char *buf, struct in6_addr addr) {
+	sprintf(buf, "%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x",
+	        addr.s6_addr[0], addr.s6_addr[1], addr.s6_addr[2], addr.s6_addr[3],
+	        addr.s6_addr[4], addr.s6_addr[5], addr.s6_addr[6], addr.s6_addr[7],
+	        addr.s6_addr[8], addr.s6_addr[9], addr.s6_addr[10], addr.s6_addr[11],
+	        addr.s6_addr[12], addr.s6_addr[13], addr.s6_addr[14], addr.s6_addr[15]);
+}
+
+int find_element_in_ether_array(struct ether_addr *array, int array_length, struct ether_addr addr){
+	int i;
+	for (i = 0; i < array_length; i++)
+	{
+		if(compare_ether_addr(&array[i], &addr) == 0)
+			return i;
+	}
+	return -1;
+}
+
+void remove_element_from_array(struct ether_addr *array, int array_length, int index)
+{
+   int i;
+   for(i = index; i < array_length - 1; i++) array[i] = array[i + 1];
+}
+
 void awdl_neighbor_add(struct awdl_peer *p, void *_daemon_state) {
 	struct daemon_state state = *((struct daemon_state *)_daemon_state);
 	state.awdl_state.peers.ether_addr_list[state.awdl_state.peers.ether_addr_count++] = p->addr;
+	char *ipv6_addr = malloc(sizeof(char) * INET6_ADDRSTRLEN);
+	in6_addr_to_string(ipv6_addr, ether_addr_to_in6_addr(&p->addr));
+	printf("awdl_neighbor_add: %s; ipv6_addr: %s\n", p->name, ipv6_addr);
 	printf("awdl_neighbor_add: ");
 	printf("p->name: %s; ", p->name);
 	printf("country_code: %s\n", p->country_code);
 	// TODO: add to ipv6 neigbor table
 }
 
-void awdl_neighbor_remove(struct awdl_peer *p, void *_deamon_state) {
+void awdl_neighbor_remove(struct awdl_peer *p, void *_daemon_state) {
+	struct daemon_state state = *((struct daemon_state *)_daemon_state);
+	int index = find_element_in_ether_array(state.awdl_state.peers.ether_addr_list, state.awdl_state.peers.ether_addr_count, p->addr);
+	remove_element_from_array(state.awdl_state.peers.ether_addr_list, state.awdl_state.peers.ether_addr_count, index);
 	printf("awdl_neighbor_remove: ");
 	printf("p->name: %s; ", p->name);
 	printf("country_code: %s\n", p->country_code);
