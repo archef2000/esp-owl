@@ -126,7 +126,7 @@ static esp_err_t awdl_transmit(void* h, void* buffer, size_t len)
             printf("%02x ", ((uint8_t *)buffer)[i]);
         printf("\n");
 		circular_buf_put(state->tx_queue_multicast, buf);
-        esp_timer_start_once(state->timer_state.tx_mcast_timer.handle, 0);
+        esp_timer_start_once(state->timer_state.tx_mcast_timer.handle, 0*1000*1000);
 	} else { // unicast 
 		state->next = buf;
         esp_timer_start_once(state->timer_state.tx_timer.handle, 0);

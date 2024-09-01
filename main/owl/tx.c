@@ -405,7 +405,7 @@ int awdl_init_full_data_frame(uint8_t *buf, const struct ether_addr *src, const 
 	printf("Task watermark: %d\n", uxTaskGetStackHighWaterMark(NULL));
 	memcpy(ptr, payload, plen);
 	printf("Task watermark: %d\n", uxTaskGetStackHighWaterMark(NULL));
-	vTaskDelay(1000/portTICK_PERIOD_MS);
+	//vTaskDelay(1000/portTICK_PERIOD_MS);
 	ptr += plen;
 	if (ieee80211_state->fcs) {
 		printf("ieee80211_add_fcs\n");

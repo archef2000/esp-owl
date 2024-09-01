@@ -168,7 +168,8 @@ static void awdl_netif_input(void* h, void* buffer, size_t len, void* eb)
         return ESP_NETIF_OPTIONAL_RETURN_CODE(ESP_ERR_NO_MEM);
     }
     /* full packet send to tcpip_thread to process */
-    if (netif->input(p, netif) != ERR_OK) {
+    // netif->input
+    if (ip6_input(p, netif) != ERR_OK) {
         ESP_LOGE(TAG,"wlanif_input: IP input error\n");
         pbuf_free(p);
         return;

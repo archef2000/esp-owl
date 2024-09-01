@@ -95,11 +95,12 @@ void print_ether_addr(struct ether_addr *addr) {
 
 int awdl_send_data(const struct buf *buf, const struct io_state *io_state,
                    struct awdl_state *awdl_state, struct ieee80211_state *ieee80211_state) {
+	//vTaskDelay(5000/portTICK_PERIOD_MS);
 	uint8_t awdl_data[2000];
 	int awdl_data_len;
 	struct ether_addr src, dst;
 	READ_ETHER_ADDR(buf, ETHER_DST_OFFSET, &dst);
-	memcpy(&awdl_state->self_address, &src, sizeof(struct ether_addr));
+	memcpy(&src, &awdl_state->self_address, sizeof(struct ether_addr));
 	buf_strip(buf, ETHER_LENGTH);
 	awdl_data_len = awdl_init_full_data_frame(awdl_data, &src, &dst, buf_data(buf), buf_len(buf), awdl_state, ieee80211_state);
 	awdl_state->stats.tx_data++;
@@ -322,6 +323,7 @@ void awdl_send_multicast(struct timer_arg_t *timer) {
 		if (awdl_is_multicast_eaw(awdl_state, now) && (in == 0)) { /* we can send now */
 			void *next;
 			circular_buf_get(state->tx_queue_multicast, &next, 0);
+			//vTaskDelay(5000/portTICK_PERIOD_MS);
 			awdl_send_data((struct buf *) next, &state->io, &state->awdl_state, &state->ieee80211_state);
 			buf_free(next);
 			state->awdl_state.stats.tx_data_multicast++;

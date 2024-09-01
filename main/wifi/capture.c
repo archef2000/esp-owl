@@ -213,7 +213,7 @@ static void query_mdns_service(const char *service_name, const char *proto)
     ESP_LOGI(TAG, "Query PTR: %s.%s.local", service_name, proto);
 
     mdns_result_t *results = NULL;
-    esp_err_t err = mdns_query_ptr(service_name, proto, 2000, 20,  &results);
+    esp_err_t err = mdns_query_ptr(service_name, proto, 5000, 20,  &results);
     if (err) {
         ESP_LOGE(TAG, "Query Failed: %s", esp_err_to_name(err));
         return;
@@ -222,7 +222,8 @@ static void query_mdns_service(const char *service_name, const char *proto)
         ESP_LOGW(TAG, "No results found!");
         return;
     }
-
+	ESP_LOGE("awdl", "mdns_print_results\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n");
+	printf("  SRV : %s.local:%u\n", r->hostname, r->port);
     mdns_print_results(results);
     mdns_query_results_free(results);
 }
@@ -312,12 +313,24 @@ void wifi_sniffer_init(struct availabeTasks *tasks)
         ESP_LOGI(TAG, "netif not up, waiting...");
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
+	/*
     // Set IPv4 address
     esp_netif_ip_info_t ip_info;
     IP4_ADDR(&ip_info.ip, 192, 168, 1, 100);    // Set your desired IP here
     IP4_ADDR(&ip_info.gw, 192, 168, 1, 1);      // Set your desired Gateway here
     IP4_ADDR(&ip_info.netmask, 255, 255, 255, 0); // Set your desired Netmask here
     esp_netif_set_ip_info(lowpan6_ble_netif, &ip_info);
+
+    esp_netif_ip6_info_t ip6_info;
+    ip6addr_aton(STATIC_IPV6_ADDR, &ip6_info.ip);
+    ESP_ERROR_CHECK(esp_netif_set_ip6_info(netif, &ip6_info));
+	*/
+	struct in6_addr ip6_addr = ether_addr_to_in6_addr((struct ether_addr *)&mac);
+    ESP_ERROR_CHECK(netif_add_ip6_address(netif, (ip6_addr_t *)&ip6_addr, 0));
+    esp_netif_dns_info_t dns_info;
+	memcpy(&dns_info.ip.u_addr.ip6.addr, &ip6_addr, sizeof(struct in6_addr));
+    dns_info.ip.type = IPADDR_TYPE_V6;
+    ESP_ERROR_CHECK(esp_netif_set_dns_info(lowpan6_ble_netif, ESP_NETIF_DNS_MAIN, &dns_info)); 
 
 	//xTaskCreate(send_data_loop, "send_data_loop", 8096, lowpan6_ble_netif, 10, NULL);
 	
@@ -337,9 +350,9 @@ void wifi_sniffer_init(struct availabeTasks *tasks)
     ESP_ERROR_CHECK( mdns_init() );
 	mdns_register_netif(lowpan6_ble_netif);
 
-    ESP_ERROR_CHECK(mdns_netif_action(lowpan6_ble_netif, MDNS_EVENT_ENABLE_IP6 | MDNS_EVENT_ENABLE_IP4));
-    ESP_ERROR_CHECK(mdns_netif_action(lowpan6_ble_netif, MDNS_EVENT_ANNOUNCE_IP4 | MDNS_EVENT_ANNOUNCE_IP6));
-    ESP_ERROR_CHECK(mdns_netif_action(lowpan6_ble_netif, MDNS_EVENT_IP4_REVERSE_LOOKUP | MDNS_EVENT_IP6_REVERSE_LOOKUP));
+    ESP_ERROR_CHECK(mdns_netif_action(lowpan6_ble_netif, MDNS_EVENT_ENABLE_IP6));
+    ESP_ERROR_CHECK(mdns_netif_action(lowpan6_ble_netif, MDNS_EVENT_ANNOUNCE_IP6));
+    ESP_ERROR_CHECK(mdns_netif_action(lowpan6_ble_netif, MDNS_EVENT_IP6_REVERSE_LOOKUP));
 	xTaskCreate(mdns_query_task, "mdns_query_task", 8096, NULL, 5, tasks->mdns);
 	tasks->mdns_enabled = true;
 } 

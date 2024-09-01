@@ -34,7 +34,6 @@ int awdl_handle_sync_params_tlv(struct awdl_peer *src, const struct buf *val, st
 	int64_t sync_err_tu;
 
 	if (!awdl_election_is_sync_master(&state->election, &src->addr)) {
-		log_warn("ignore sync params from nodes that are not our master");
 		return RX_IGNORE; /* ignore sync params from nodes that are not our master */
 	}
 
