@@ -1,5 +1,3 @@
-//
-
 // https://github.com/boundary/libdnet/blob/master/include/dnet/eth.h
 #define ETH_CRC_LEN	4
 

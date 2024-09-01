@@ -65,7 +65,6 @@ void IRAM_ATTR increase_counter(void) {
     atomic_fetch_add(&counter, 1);
 }
 int read_and_reset_counter(void) {
-    //return atomic_exchange(&counter, 0);
     return atomic_fetch_add(&counter, 0);
 }
 
@@ -79,16 +78,6 @@ void awdl_packets_print_ps(void *pvParameters) {
     }
 }
 
-const uint8_t answer_query[46] = {
-	0x08, 0x5F, 0x61, 0x69, 0x72, 0x64, 0x72, 0x6F,
-	0x70, 0x04, 0x5F, 0x74, 0x63, 0x70, 0x05, 0x6c,
-	0x6F, 0x63, 0x61, 0x6C, 0x00, 0x00, 0x0C, 0x00,
-	0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0F, 0x0C, 0x39, 
-	0x30, 0x39, 0x34, 0x30, 0x62, 0x34, 0x32, 0x30, 
-	0x34, 0x36, 0x37, 0xC0, 0x0C
-};
-
-// void handle_mdns_packet2(uint8_t *queries, const uint16_t *packet_len);
 #include "esp_netif.h"
 #include "esp_log.h"
 #include "esp_netif_net_stack.h"
@@ -271,7 +260,6 @@ void wifi_sniffer_init(struct availabeTasks *tasks)
 {
 	nvs_flash_init();
     	esp_netif_init();
-    	//ESP_ERROR_CHECK( esp_event_loop_init(event_handler, NULL) );
     	wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
 	ESP_ERROR_CHECK( esp_wifi_init(&cfg) );
 	ESP_ERROR_CHECK( esp_wifi_set_country(&wifi_country)); /* set country for channel range [1, 13] */
@@ -451,13 +439,6 @@ void awdl_receive_frame(const uint8_t *buf, int len) {
 // send: https://gist.github.com/shekkbuilder/768189e59575b9ec80664b69242afffd
 // linux interfaces: https://github.com/lattera/glibc/blob/master/inet/netinet/ether.h
 
-//static const char *pkt_types[] = {
-//	"Management frame",
-//	"Control frame",
-//	"Data frame",
-//	"Other type, such as MIMO etc",
-//};
-
 void
 wifi_sniffer_packet_handler(void* buff, wifi_promiscuous_pkt_type_t type)
 {
@@ -465,18 +446,12 @@ wifi_sniffer_packet_handler(void* buff, wifi_promiscuous_pkt_type_t type)
 		printf("Unknown type %d\n", type);
 		return;
 	}
-	//printf("type: %s\n", pkt_types[type]);
 	
-	// https://github.com/espressif/esp-idf/blob/0479494e7abe5aef71393fba2e184b3a78ea488f/components/esp_wifi/include/local/esp_wifi_types_native.h#L86
-	//if (type != WIFI_PKT_MGMT)
-	//	return;
-
 	const wifi_pkt_t *wifi_pkt = (wifi_pkt_t *)buff;
 	uint8_t awdl_data_mac[6] = { 0x00, 0x25, 0x00, 0xff, 0x94, 0x73 };
 	if (memcmp(wifi_pkt->hdr.addr3,awdl_data_mac, sizeof(struct ether_addr))!=0) {
 		return;
 	}
-	//subtype
 	//printf("subtype: %i\n", ipkt->payload[06]);
 	
 	const uint8_t *addr1 = wifi_pkt->hdr.addr1;

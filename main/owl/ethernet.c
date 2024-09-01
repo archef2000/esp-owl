@@ -1,10 +1,8 @@
-
 #include <sys/types.h>
 #include <stdint.h>
 #include <string.h>
 #include <stdio.h>
 
-//extern char *ether_ntoa(const struct ether_addr *__addr);
 struct ether_addr
 {
   uint8_t ether_addr_octet[6];

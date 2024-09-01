@@ -37,67 +37,20 @@ static struct {
 	int quiet;
 } L;
 
-
-static const char *level_names[] = {
-	"EMERG", "ALERT", "CRIT", "ERROR", "WARN", "NOTICE", "INFO", "DEBUG", "TRACE"
-};
-
-
-#ifdef LOG_USE_COLOR
-static const char *level_colors[] = {
-	"\x1b[94m", "\x1b[36m", "\x1b[32m", "\x1b[33m", "\x1b[31m", "\x1b[35m"
-};
-#endif
-
-
-static void lock(void) {
-	if (L.lock) {
-		L.lock(L.udata, 1);
-	}
-}
-
-
-static void unlock(void) {
-	if (L.lock) {
-		L.lock(L.udata, 0);
-	}
-}
-
-
-void log_set_udata(void *udata) {
-	L.udata = udata;
-}
-
-
-void log_set_lock(log_LockFn fn) {
-	L.lock = fn;
-}
-
-
-void log_set_fp(FILE *fp) {
-	L.fp = fp;
-}
-
-
-void log_set_level(int level) {
-	L.level = level;
-}
-
-
 void log_set_quiet(int enable) {
 	L.quiet = enable ? 1 : 0;
 }
 
-
 int log_log(int level, const char *file, int line, const char *func, const char *fmt, ...) {
-    char buf[1024];
-    va_list args;
-    va_start(args, fmt);
+	if (!L.quiet) {
+    	char buf[1024];
+    	va_list args;
+    	va_start(args, fmt);
 
-    vsnprintf(buf, sizeof(buf), fmt, args);
+    	vsnprintf(buf, sizeof(buf), fmt, args);
 
-    va_end(args);
-	ESP_LOG_LEVEL(level, func, "[%s:%d] %s\n", file, line, buf);
-
+    	va_end(args);
+		ESP_LOG_LEVEL(level, func, "[%s:%d] %s\n", file, line, buf);
+	}
 	return 1;
 }

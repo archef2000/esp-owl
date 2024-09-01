@@ -16,20 +16,3 @@ int host_send(const struct io_state *state, const uint8_t *buf, int len)
     printf("\nhost_send: end\n");
 	return 0;
 }
-
-// read the data from the netif so ev_io_init 
-int host_recv(const struct io_state *state, uint8_t *buf, int *len) {
-	printf("host_recv");
-	//long nread;
-	//if (!state || !state->host_fd)
-	//	return -EINVAL;
-	//nread = read(state->host_fd, buf, *len);
-	//if (nread < 0) {
-	//	if (errno != EWOULDBLOCK)
-	//		log_error("tun: error reading from device");
-	//	return -errno;
-	//}
-	//*len = nread;
-    *len = 0;
-	return 0;
-}

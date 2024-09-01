@@ -59,7 +59,6 @@ void awdl_init_state(struct awdl_state *state, const char *hostname, const struc
 	state->channel.enc = AWDL_CHAN_ENC_OPCLASS;
 	state->channel.master = chan;
 	state->channel.current = CHAN_NULL;
-	//awdl_chanseq_init(state->channel.sequence);
 	awdl_chanseq_init_static(state->channel.sequence, &state->channel.master);
 
 	awdl_election_state_init(&state->election, self);

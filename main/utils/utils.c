@@ -3,36 +3,19 @@
 #include <stdio.h>
 #include "driver/gpio.h"
 
-//char* concat_array_old(char* array[], int start, int end) {
-//    char* result = malloc(sizeof(char*) * (end - start + 1));
-//    result[0] = '\0';
-//    for (int i = start; i < end; i++) {
-//        strncat(result, array[i], strlen(array[i]));
-//        if (i != end - 1) {
-//            strcat(result, " ");
-//        }
-//        }
-//    result[strcspn(result, "\r\n")] = 0;
-//    return result;
-//}
 char* concat_array(char* array[], int start, int end) {
-    // Calculate the total length needed for the concatenated string
     size_t total_length = 0;
     for (int i = start; i < end; i++) {
         total_length += strlen(array[i]);
     }
 
-    // Allocate memory for the result (including space for null-terminator)
     char* result = (char*)malloc(total_length + 1);
     if (!result) {
-        // Handle memory allocation failure
         return NULL;
     }
 
-    // Initialize the result string
     result[0] = '\0';
 
-    // Concatenate the strings
     for (int i = start; i < end; i++) {
         strcat(result, array[i]);
         if (i != end - 1) {
@@ -40,7 +23,6 @@ char* concat_array(char* array[], int start, int end) {
         }
     }
 
-    // Remove any trailing newline or carriage return
     result[strcspn(result, "\r\n")] = '\0';
 
     return result;

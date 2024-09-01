@@ -259,7 +259,7 @@ int awdl_init_data_path_state_tlv(uint8_t *buf, const struct awdl_state *state) 
 		tlv->social_channels = htole16(AWDL_SOCIAL_CHANNEL_6_BIT);
 	else if (awdl_chan_num(state->channel.master, AWDL_CHAN_ENC_OPCLASS) == 44) {
 		tlv->social_channels = htole16(AWDL_SOCIAL_CHANNEL_44_BIT);
-	} else { // 149
+	} else {
 		tlv->social_channels = htole16(AWDL_SOCIAL_CHANNEL_149_BIT);
 	}
 
@@ -395,7 +395,6 @@ int awdl_init_full_data_frame(uint8_t *buf, const struct ether_addr *src, const 
                               const uint8_t *payload, unsigned int plen,
                               struct awdl_state *state, struct ieee80211_state *ieee80211_state) {
 	uint8_t *ptr = buf;
-	//printf("awdl_init_full_data_frame\n");
 	// ptr += ieee80211_init_radiotap_header(ptr); // esp doesn't not have radiotap header
 	
 	ptr += ieee80211_init_awdl_data_hdr(ptr, src, dst, ieee80211_state);
@@ -405,7 +404,6 @@ int awdl_init_full_data_frame(uint8_t *buf, const struct ether_addr *src, const 
 	printf("Task watermark: %d\n", uxTaskGetStackHighWaterMark(NULL));
 	memcpy(ptr, payload, plen);
 	printf("Task watermark: %d\n", uxTaskGetStackHighWaterMark(NULL));
-	//vTaskDelay(1000/portTICK_PERIOD_MS);
 	ptr += plen;
 	if (ieee80211_state->fcs) {
 		printf("ieee80211_add_fcs\n");

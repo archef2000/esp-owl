@@ -95,7 +95,6 @@ void print_ether_addr(struct ether_addr *addr) {
 
 int awdl_send_data(const struct buf *buf, const struct io_state *io_state,
                    struct awdl_state *awdl_state, struct ieee80211_state *ieee80211_state) {
-	//vTaskDelay(5000/portTICK_PERIOD_MS);
 	uint8_t awdl_data[2000];
 	int awdl_data_len;
 	struct ether_addr src, dst;
@@ -115,7 +114,6 @@ wire_error:
 }
 
 void awdl_send_action(struct daemon_state *state, enum awdl_action_type type) {
-	//int64_t start_time = esp_timer_get_time();
 	int len;
 	uint8_t buf[15535]; 
 	len = awdl_init_full_action_frame(buf, &state->awdl_state, &state->ieee80211_state, type);
@@ -123,7 +121,6 @@ void awdl_send_action(struct daemon_state *state, enum awdl_action_type type) {
 		ESP_LOGE(TAG, "awdl_send_action awdl_init_full_action_frame error");
 		return;
 	}
-	//printf("\n%lld\n", esp_timer_get_time() - start_time);
 	wlan_send(&state->io, buf, len);
 	state->awdl_state.stats.tx_action++;
 }
@@ -237,7 +234,6 @@ void awdl_neighbor_add(struct awdl_peer *p, void *_daemon_state) {
 	printf("awdl_neighbor_add: ");
 	printf("p->name: %s; ", p->name);
 	printf("country_code: %s\n", p->country_code);
-	// TODO: add to ipv6 neigbor table
 }
 
 void awdl_neighbor_remove(struct awdl_peer *p, void *_daemon_state) {
@@ -247,12 +243,10 @@ void awdl_neighbor_remove(struct awdl_peer *p, void *_daemon_state) {
 	printf("awdl_neighbor_remove: ");
 	printf("p->name: %s; ", p->name);
 	printf("country_code: %s\n", p->country_code);
-	// TODO: remove to ipv6 neigbor table
 }
 
 void awdl_clean_peers(struct timer_arg_t *arg) {
 	ESP_LOGD("awdl", "awdl_clean_peers");
-    //int64_t start_time = esp_timer_get_time();
 
 	uint64_t cutoff_time;
 	struct daemon_state *state = arg->data;
@@ -338,7 +332,6 @@ void awdl_send_multicast(struct timer_arg_t *timer) {
 		if (awdl_is_multicast_eaw(awdl_state, now) && (in == 0)) { /* we can send now */
 			void *next;
 			circular_buf_get(state->tx_queue_multicast, &next, 0);
-			//vTaskDelay(5000/portTICK_PERIOD_MS);
 			awdl_send_data((struct buf *) next, &state->io, &state->awdl_state, &state->ieee80211_state);
 			buf_free(next);
 			state->awdl_state.stats.tx_data_multicast++;

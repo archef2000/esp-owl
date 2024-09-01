@@ -436,38 +436,10 @@ int awdl_rx(const struct buf *frame, struct buf ***data_frame, struct awdl_state
 	uint16_t fc, qosc; /* frame and QoS control */
 	signed char rssi;
 	uint64_t tsft;
-    /*
-    https://www.radiotap.org/fields/Flags.html
-	//uint8_t flags;
-    flags = radiotap_parse()
-    only to check if "0x10 	frame includes FCS" to remove it. check_fcs()
-    */
-   
-   /*
-	tsft = clock_time_us(); // TODO Radiotap TSFT is more accurate but then need to access TSF in clock_time_us() 
-	from = (void *)frame->hdr.addr2;
-	to = (void *)frame->hdr.addr1; 
-	//fc = le16toh(&frame->hdr.frame_control);
-	fc = frame->hdr.frame_control;
-    rssi = (signed char)frame->rx_ctrl.rssi;
-	// TODO ignore frames from self, should be filtered at pcap level 
-	//if (!(to->ether_addr_octet[0] & 0x01) && memcmp(to, &state->self_address, sizeof(struct ether_addr)))
-	//	return RX_IGNORE_NOPROMISC; // neither broadcast/multicast nor unicast to me 
-	//struct awdl_state state;
-	uint8_t* awdl_data = (uint8_t*)frame->payload;
-	int awdl_len = frame->rx_ctrl.sig_len;
-	const struct buf *buf = buf_new_const(awdl_data, awdl_len);
-	*/
-
-
-
 
 	tsft = clock_time_us(); /* TODO Radiotap TSFT is more accurate but then need to access TSF in clock_time_us() */
-	// no radiotap header
 	READ_U8(frame, 0, (unsigned char *)&rssi);
 	BUF_STRIP(frame, sizeof(wifi_pkt_rx_ctrl_t));
-
-	// no flags
 
 	READ_BYTES(frame, 0, NULL, sizeof(wifi_ieee80211_hdr_t));
 
@@ -479,8 +451,8 @@ int awdl_rx(const struct buf *frame, struct buf ***data_frame, struct awdl_state
 	if (!memcmp(from, &state->self_address, sizeof(struct ether_addr)))
 		return RX_IGNORE_FROM_SELF; /* TODO ignore frames from self, should be filtered at pcap level */
 
-	//if (!(to->ether_addr_octet[0] & 0x01) && memcmp(to, &state->self_address, sizeof(struct ether_addr)))
-	//	return RX_IGNORE_NOPROMISC; /* neither broadcast/multicast nor unicast to me */
+	if (!(to->ether_addr_octet[0] & 0x01) && memcmp(to, &state->self_address, sizeof(struct ether_addr)))
+		return RX_IGNORE_NOPROMISC; /* neither broadcast/multicast nor unicast to me */
 
 	BUF_STRIP(frame, sizeof(wifi_ieee80211_hdr_t));
 

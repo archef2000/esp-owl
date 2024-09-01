@@ -1,7 +1,6 @@
 #include "esp_netif_types.h"
 #include "lwip/ip6_addr.h"
 #include "owl/ethernet.h"
-//#include "nimble/ble.h"
 
 /** Bring up the netif upon connection.
  *

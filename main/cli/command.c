@@ -62,8 +62,6 @@ void main_cmd(char* str, struct availabeTasks *tasks) {
         case OPENDROP_COMMAND:
             break;
         case MDNS_COMMAND:
-            // first argument is the command
-            // second argument if enable/disable
             if (arg_count == 1) {
                 if (strcmp(arguments[0], "enable") == 0) {
                     printf("mdns enable bool: %d\n", tasks->mdns_enabled);
