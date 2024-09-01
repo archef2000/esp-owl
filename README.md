@@ -4,6 +4,10 @@ Currently only for esp32-s3 devices.
 
 Start of [Open Wireless Link](https://github.com/seemoo-lab/owl) (Apple Wireless Direct Link) support for ESP32 devices. For [OpenDrop](https://github.com/seemoo-lab/opendrop)
 
+AWDL is used as an ad-hoc wireless networking protocol for Apple devices. It is used for many features of the Apple ecosystem, such as AirDrop, AirPlay and others.
+It is impossible to use AWDL with a unrooted Android phone as it needs to send and receive raw WIFI frames. An external WiFi dongle would be needed to send raw frames.
+But then each wifi driver would beed to be implemented in user space. So I ported owl to the ESP32 to be able to make AirDrop available on every Platform that control a serial port.
+
 ## Supported devices
 - esp32-s3 8MB flash
 

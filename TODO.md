@@ -7,3 +7,4 @@ UART cli for:
 * mdns operations
 * ipv6 neigbor table from mac address
 * netif send + recv
+ble & wifi coexistence
