@@ -29,6 +29,7 @@
 #include "esp_event.h"
 #include "lwip/inet.h"
 #include <stdbool.h>
+#include "esp_netif_types.h"
 
 #define ETHER_LENGTH 6
 #define ETHER_DST_OFFSET 0
@@ -40,6 +41,10 @@ struct ether_addr in6_addr_to_ether_addr(struct in6_addr *addr);
 void in6_addr_to_string(char *buf, struct in6_addr addr);
 
 void ether_addr_to_string(char *buf, struct ether_addr addr);
+
+void print_in6_addr(struct in6_addr addr);
+
+void print_esp_ip6_addr(esp_ip6_addr_t addr);
 
 struct timer_arg_t;
 

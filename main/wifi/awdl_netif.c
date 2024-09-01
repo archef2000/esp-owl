@@ -169,7 +169,7 @@ static void awdl_netif_input(void* h, void* buffer, size_t len, void* eb)
     }
     /* full packet send to tcpip_thread to process */
     // netif->input
-    if (ip6_input(p, netif) != ERR_OK) {
+    if (netif->input(p, netif) != ERR_OK) {
         ESP_LOGE(TAG,"wlanif_input: IP input error\n");
         pbuf_free(p);
         return;

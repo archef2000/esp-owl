@@ -197,6 +197,21 @@ void ether_addr_to_string(char *buf, struct ether_addr addr) {
 	sprintf(buf, "%02x:%02x:%02x:%02x:%02x:%02x", addr.ether_addr_octet[0], addr.ether_addr_octet[1], addr.ether_addr_octet[2], addr.ether_addr_octet[3], addr.ether_addr_octet[4], addr.ether_addr_octet[5]);
 }
 
+void print_in6_addr(struct in6_addr addr) {
+	char *ipv6_addr = malloc(sizeof(char) * INET6_ADDRSTRLEN);
+	in6_addr_to_string(ipv6_addr, addr);
+	printf("ipv6_addr: %s\n", ipv6_addr);
+}
+
+#include "esp_netif_types.h"
+void print_esp_ip6_addr(esp_ip6_addr_t addr) {
+	char *ipv6_addr = malloc(sizeof(char) * INET6_ADDRSTRLEN);
+	struct in6_addr in6_addr;
+	memcpy(&in6_addr, &addr, sizeof(struct in6_addr));
+	in6_addr_to_string(ipv6_addr, in6_addr);
+	printf("ipv6_addr: %s\n", ipv6_addr);
+}
+
 int find_element_in_ether_array(struct ether_addr *array, int array_length, struct ether_addr addr){
 	int i;
 	for (i = 0; i < array_length; i++)

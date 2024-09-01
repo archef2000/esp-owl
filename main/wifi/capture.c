@@ -223,8 +223,38 @@ static void query_mdns_service(const char *service_name, const char *proto)
         return;
     }
 	ESP_LOGE("awdl", "mdns_print_results\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n");
-	printf("  SRV : %s.local:%u\n", r->hostname, r->port);
     mdns_print_results(results);
+
+	esp_ip6_addr_t rcv_addr;
+	if (results->addr) {
+        mdns_ip_addr_t *a = results->addr;
+        while (a) {
+            if (a->addr.type == ESP_IPADDR_TYPE_V6) {
+                printf("  AAAA: " IPV6STR "\n", IPV62STR(a->addr.u_addr.ip6));
+				print_esp_ip6_addr(a->addr.u_addr.ip6);
+				memcpy(&rcv_addr, &a->addr.u_addr.ip6, sizeof(esp_ip6_addr_t));
+            } else {
+                printf("  A   : " IPSTR "\n", IP2STR(&(a->addr.u_addr.ip4)));
+            }
+            a = a->next;
+        }
+	} else if (results->hostname) {
+		err = mdns_query_aaaa(results->hostname, 5000, &rcv_addr);
+		printf("error: %s\n", esp_err_to_name(err));
+		print_esp_ip6_addr(rcv_addr);
+		printf("\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n");
+	} else if (results->instance_name) {
+		ESP_LOGE("mdns","only ptr");
+    	mdns_query_results_free(results);
+		err = mdns_query_srv(results->instance_name, results->service_type, results->proto, 5000,  &results);
+		printf("error: %s\n", esp_err_to_name(err));
+		mdns_print_results(results);
+		if (results->hostname) {
+			err = mdns_query_aaaa(results->hostname, 5000, &rcv_addr);
+			printf("error: %s\n", esp_err_to_name(err));
+			print_esp_ip6_addr(rcv_addr);
+		}
+	}
     mdns_query_results_free(results);
 }
 
@@ -402,10 +432,6 @@ void awdl_receive_frame(const uint8_t *buf, int len) {
 		printf("dst: %s; ", ether_ntoa(&packet->dst));
 		printf("ether type: %04x; ", packet->ether_type);
 		printf("len: %i; data: \n",packet->len);
-		for (int i=0; i<packet->len; i++) {
-			printf("%02X ", packet->data[i]);
-		}
-
 
 		esp_netif_t *netif = esp_netif_get_handle_from_ifkey("AWDL_DEF");
 		if (netif == NULL) {
