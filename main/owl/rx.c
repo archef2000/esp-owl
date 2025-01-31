@@ -34,6 +34,7 @@ int awdl_handle_sync_params_tlv(struct awdl_peer *src, const struct buf *val, st
 	int64_t sync_err_tu;
 
 	if (!awdl_election_is_sync_master(&state->election, &src->addr)) {
+		log_warn("Ignoring sync params from non-master %s", ether_ntoa(&src->addr));
 		return RX_IGNORE; /* ignore sync params from nodes that are not our master */
 	}
 
@@ -224,7 +225,7 @@ int awdl_handle_tlv(struct awdl_peer *src, uint8_t type, const struct buf *val,
 		case AWDL_SYNCTREE_TLV: /* seems to be buggy, not used in our election process */
 			/* fall through */
 		default:
-			log_trace("awdl: not handling %s (%u)", awdl_tlv_as_str(type), type);
+			ESP_LOGV("awdl_handle_tlv","not handling %s (%u)", awdl_tlv_as_str(type), type);
 			return RX_IGNORE;
 	}
 }
@@ -264,12 +265,12 @@ int awdl_rx_action(const struct buf *frame, signed char rssi, uint64_t tsft,
 
 	subtype = awdl_parse_action_hdr(frame);
 	if (subtype < 0) {
-		log_trace("awdl_action: not an action frame"); /* could be block ACK */
-		for (int i=0; i<buf_len(frame); i++) {
-			printf("%02X ", ((uint8_t *)buf_data(frame))[i]);
+		printf("awdl_rx_action: not an action frame\n"); /* could be block ACK */
+		for (int i=0; i<buf_orig_len(frame)-sizeof(wifi_pkt_rx_ctrl_t); i++) {
+			printf("%02X ", ((uint8_t *)buf_orig(frame)+sizeof(wifi_pkt_rx_ctrl_t))[i]);
 		}
 		printf("\n");
-		return RX_IGNORE;
+		return RX_IGNORE; // drop dis 66:79:5b:ca:15:dd
 	}
 	buf_strip(frame, sizeof(struct awdl_action));
 
@@ -284,12 +285,12 @@ int awdl_rx_action(const struct buf *frame, signed char rssi, uint64_t tsft,
 	/* Update peer table */
 	status = awdl_peer_add(state->peers.peers, src, tsft, state->peer_cb, state->peer_cb_data);
 	if (status < 0) {
-		log_warn("awdl_action: could not add peer: %s (%d)", ether_ntoa(src), status);
+		log_error("awdl_action: could not add peer: %s (%d)", ether_ntoa(src), status);
 		return RX_IGNORE;
 	}
 	status = awdl_peer_get(state->peers.peers, src, &peer);
 	if (status < 0) {
-		log_warn("awdl_action: could not find peer: %s (%d)", ether_ntoa(src), status);
+		log_error("awdl_action: could not find peer: %s (%d)", ether_ntoa(src), status);
 		return RX_IGNORE; /* FIXME happens sometimes, not sure why */
 	}
 
@@ -302,7 +303,7 @@ int awdl_rx_action(const struct buf *frame, signed char rssi, uint64_t tsft,
 			state->tlv_cb(peer, tlv_type, tlv_buf, state, state->tlv_cb_data);
 		buf_free(tlv_buf);
 		if (result < 0) {
-			log_warn("awdl_action: parsing error %s", awdl_tlv_as_str(tlv_type));
+			printf("awdl_action: parsing error %s", awdl_tlv_as_str(tlv_type));
 			return RX_UNEXPECTED_FORMAT;
 		}
 		buf_strip(frame, len);
@@ -312,8 +313,8 @@ int awdl_rx_action(const struct buf *frame, signed char rssi, uint64_t tsft,
 		buf_strip(frame, 1);
 	}
 
-	if (buf_len(frame) > 0) {
-		log_debug("awdl_action: unexpected bytes (%d) at end of frame", buf_len(frame));
+	if (buf_len(frame) > 4) {
+		printf("awdl_action: unexpected bytes (%d) at end of frame", buf_len(frame));
 		for (int i=0; i<buf_len(frame); i++) {
 			printf("%02X ", ((uint8_t *)buf_data(frame))[i]);
 		}
@@ -384,10 +385,11 @@ int awdl_rx_data(const struct buf *frame, struct buf ***out, const struct ether_
 	/* create ethernet frame */
 	read_be16(frame, 6, &ether_type);
 	buf_strip(frame, sizeof(struct awdl_data));
+	buf_take(frame, 4);
 
 	**out = buf_new_owned(ETHER_MAX_LEN);
 
-	printf("awdl_rx_data_frame: len: %i\n", buf_len(frame));
+	log_info("awdl_rx_data_frame: len: %i\n", buf_len(frame));
 	/* TODO use checked write methods */
 	offset += write_ether_addr(**out, offset, dst);
 	offset += write_ether_addr(**out, offset, src);
@@ -437,30 +439,55 @@ int awdl_rx(const struct buf *frame, struct buf ***data_frame, struct awdl_state
 	signed char rssi;
 	uint64_t tsft;
 
-	tsft = clock_time_us(); /* TODO Radiotap TSFT is more accurate but then need to access TSF in clock_time_us() */
+	tsft = clock_time_us(); /* TODO Radiotap TSFT is more accurate but then need to access TSF in clock_time_us() use timestamp from wifi_pkt_rx_ctrl_t */
 	READ_U8(frame, 0, (unsigned char *)&rssi);
 	BUF_STRIP(frame, sizeof(wifi_pkt_rx_ctrl_t));
 
 	READ_BYTES(frame, 0, NULL, sizeof(wifi_ieee80211_hdr_t));
 
 	ieee80211 = (const wifi_ieee80211_hdr_t *) (buf_data(frame));
+	uint16_t seq_num = ieee80211->sequence_ctrl >> 4;
 	from = (const struct ether_addr *)&ieee80211->addr2;
 	to = (const struct ether_addr *)&ieee80211->addr1;
 	fc = le16toh(ieee80211->frame_control);
+	//log_error("fc: %04x, switch: %04x", fc, (fc & (IEEE80211_FCTL_FTYPE | IEEE80211_FCTL_STYPE | IEEE80211_FCTL_RETRY)));
 
 	if (!memcmp(from, &state->self_address, sizeof(struct ether_addr)))
 		return RX_IGNORE_FROM_SELF; /* TODO ignore frames from self, should be filtered at pcap level */
 
 	if (!(to->ether_addr_octet[0] & 0x01) && memcmp(to, &state->self_address, sizeof(struct ether_addr)))
+	{
+		printf("awdl_rx_data: from %s; to %s\n", ether_ntoa(from), ether_ntoa(to));
 		return RX_IGNORE_NOPROMISC; /* neither broadcast/multicast nor unicast to me */
-
+	}
+	
 	BUF_STRIP(frame, sizeof(wifi_ieee80211_hdr_t));
+	// drop dis 2a:44:7f:bd:83:a8
+	// search: ip_input: IPv6 packet
+	// awdl_rx: fc: 
 
 	/* Processing based on frame type and subtype */
-	switch (fc & (IEEE80211_FCTL_FTYPE | IEEE80211_FCTL_STYPE)) {
+	// fc & (0x000c|0x00f0)
+	switch (fc & (IEEE80211_FCTL_FTYPE | IEEE80211_FCTL_STYPE | IEEE80211_FCTL_RETRY)) {
 		case IEEE80211_FTYPE_MGMT | IEEE80211_STYPE_ACTION:
-			return awdl_rx_action(frame, rssi, tsft, from, to, state);
+			log_error("action frame %i",seq_num); // real fc: 00d0, switch: 00d0
+			int err = awdl_rx_action(frame, rssi, tsft, from, to, state);
+			if (err == RX_IGNORE) {
+				//for (int i=0; i<buf_len(frame); i++) {
+				//	printf("%02X ", ((uint8_t *)buf_data(frame))[i]);
+				//}
+				//printf("\n");
+				log_error("awdl_rx: ignoring action frame");
+			}
+			return err;
 		case IEEE80211_FTYPE_DATA | IEEE80211_STYPE_DATA | IEEE80211_STYPE_QOS_DATA:
+			log_error("\n\n\n\n\n\n\n\n qos without retry flag\n\n\n\n\n\n\n");
+			/* fall through */
+		case IEEE80211_FTYPE_DATA | IEEE80211_STYPE_DATA | IEEE80211_STYPE_QOS_DATA | 0x0800:
+			printf("awdl_rx_data_qos\n"); // qosc: 0 -> fc: 0888, switch: 0888
+			for (int i=0; i<buf_len(frame); i++) {
+				printf("%02X ", ((uint8_t *)buf_data(frame))[i]);
+			}
 			READ_LE16(frame, 0, &qosc);
 			BUF_STRIP(frame, IEEE80211_QOS_CTL_LEN);
 			/* TODO should handle block acks if required (IEEE80211_QOS_CTL_ACK_POLICY_XYZ) */
@@ -471,11 +498,16 @@ int awdl_rx(const struct buf *frame, struct buf ***data_frame, struct awdl_state
 			}
 			/* else fall through */
 		case IEEE80211_FTYPE_DATA | IEEE80211_STYPE_DATA:
-			printf("awdl_rx_data_frame: DATA\n");
+		//case 0x08d0:
+			log_error("awdl_rx_data %i",seq_num); // fc: 0008, switch: 0008
+			for (int i=0; i<buf_len(frame); i++) {
+				printf("%02X ", ((uint8_t *)buf_data(frame))[i]);
+			}
+			printf("\n");
 			return awdl_rx_data(frame, data_frame, from, to, state);
 		default:
-			log_warn("ieee80211: cannot handle type %x and subtype %x of received frame from %s",
-						         fc & IEEE80211_FCTL_FTYPE, fc & IEEE80211_FCTL_STYPE, ether_ntoa(from));
+			log_warn("ieee80211: cannot handle type %x and subtype %x of received frame from %s seq	%04x",
+						         fc & IEEE80211_FCTL_FTYPE, fc & IEEE80211_FCTL_STYPE, ether_ntoa(from),EndianConvert16(seq_num<<4));
 			return RX_UNEXPECTED_TYPE;
 	}
 wire_error:

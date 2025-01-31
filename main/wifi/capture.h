@@ -2,7 +2,8 @@
 #include "esp_wifi_types.h"
 #include "owl/ethernet.h"
 #include "esp_netif.h"
-#include "cli/tasks.h"
+#include "utils/systeminfo.h"
+#include "owl/log.h"
 
 #ifndef WIFI_CAPTURE_H
 #define WIFI_CAPTURE_H
@@ -41,5 +42,5 @@ struct __attribute__((scalar_storage_order("little-endian"))) awdl_packet {
 
 #endif /* WIFI_CAPTURE_H */
 
-void wifi_sniffer_init(struct availabeTasks *tasks);
+void wifi_sniffer_init(struct systemInfo *sysinfo);
 

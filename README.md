@@ -26,3 +26,15 @@ ESP-IDF Build System needed
 ```
 idf.py build
 ```
+
+## Debug crashes
+```
+xtensa-esp32s3-elf-addr2line  -pfiaC -e build/owl.elf <backtrace>
+```
+
+### tcp ack retry 
+wireshark: always
+Type: 2
+Subtype: 9
+
+esp: 

@@ -56,7 +56,7 @@ static void wifi_sniffer_set_channel(uint8_t channel);
 static void wifi_sniffer_packet_handler(void *buff, wifi_promiscuous_pkt_type_t type);
 
 #include "core.h"
-struct daemon_state state;
+struct daemon_state *state;
 #include <stdatomic.h>
 
 static atomic_int counter = 0;
@@ -202,7 +202,7 @@ static void query_mdns_service(const char *service_name, const char *proto)
     ESP_LOGI(TAG, "Query PTR: %s.%s.local", service_name, proto);
 
     mdns_result_t *results = NULL;
-    esp_err_t err = mdns_query_ptr(service_name, proto, 5000, 20,  &results);
+    esp_err_t err = mdns_query_generic(NULL, service_name, proto,MDNS_TYPE_PTR,MDNS_QUERY_MULTICAST, 5000, 20,  &results);
     if (err) {
         ESP_LOGE(TAG, "Query Failed: %s", esp_err_to_name(err));
         return;
@@ -211,6 +211,7 @@ static void query_mdns_service(const char *service_name, const char *proto)
         ESP_LOGW(TAG, "No results found!");
         return;
     }
+	return;
 	ESP_LOGE("awdl", "mdns_print_results\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n");
     mdns_print_results(results);
 
@@ -249,26 +250,35 @@ static void query_mdns_service(const char *service_name, const char *proto)
 
 
 void mdns_query_task(void *pvParameters) {
+	vTaskDelete(NULL);
 	while (1) {
 		ESP_LOGE("awdl", "mdns_query_task");
 		query_mdns_service("_airdrop", "_tcp");
-		vTaskDelay(pdMS_TO_TICKS(1000));
+		//vTaskDelay(pdMS_TO_TICKS(1000));
 	}
 }
 
-void wifi_sniffer_init(struct availabeTasks *tasks)
+void mdns_service_callback(mdns_result_t *result) {
+	ESP_LOGI("mdns_service_callback", "result started");
+	mdns_print_results(result);
+	ESP_LOGI("mdns_service_callback", "result finished");
+}
+
+void wifi_sniffer_init(struct systemInfo *sysinfo)
 {
+	log_error("awdl state set");
+	state = sysinfo->awdl;
 	nvs_flash_init();
-    	esp_netif_init();
-    	wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
+    esp_netif_init();
+    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
 	ESP_ERROR_CHECK( esp_wifi_init(&cfg) );
 	ESP_ERROR_CHECK( esp_wifi_set_country(&wifi_country)); /* set country for channel range [1, 13] */
 	ESP_ERROR_CHECK( esp_wifi_set_storage(WIFI_STORAGE_RAM));
-    	ESP_ERROR_CHECK( esp_wifi_set_mode(WIFI_MODE_STA));
-    	ESP_ERROR_CHECK( esp_wifi_start() );
+    ESP_ERROR_CHECK( esp_wifi_set_mode(WIFI_MODE_STA));
+    ESP_ERROR_CHECK( esp_wifi_start());
 	wifi_promiscuous_filter_t wifi_sniffer_filter = {
         .filter_mask = WIFI_PROMIS_FILTER_MASK_ALL
-        };
+    };
 	esp_wifi_set_promiscuous_filter(&wifi_sniffer_filter);
 	esp_wifi_set_promiscuous_ctrl_filter(&wifi_sniffer_filter);
 	esp_wifi_set_promiscuous(true);
@@ -279,25 +289,25 @@ void wifi_sniffer_init(struct availabeTasks *tasks)
 		return;
 	}
 	ESP_LOGI("awdl", "mac: %02x:%02x:%02x:%02x:%02x:%02x", mac.ether_addr_octet[0], mac.ether_addr_octet[1], mac.ether_addr_octet[2], mac.ether_addr_octet[3], mac.ether_addr_octet[4], mac.ether_addr_octet[5]);
+	awdl_init_state(&state->awdl_state, "test", &mac, CHAN_OPCLASS_6, clock_time_us());
 
-	awdl_init_state(&state.awdl_state, "test", &mac, CHAN_OPCLASS_6, clock_time_us());
-
-	state.awdl_state.peer_cb = awdl_neighbor_add;
-	state.awdl_state.peer_cb_data = &state;
-	state.awdl_state.peer_remove_cb = awdl_neighbor_remove;
-	state.awdl_state.peer_remove_cb_data = &state;
+    printf("capture: aw_period: %hn\n", &sysinfo->awdl->awdl_state.sync.aw_period);
+	state->awdl_state.peer_cb = awdl_neighbor_add;
+	state->awdl_state.peer_cb_data = &state;
+	state->awdl_state.peer_remove_cb = awdl_neighbor_remove;
+	state->awdl_state.peer_remove_cb_data = &state;
 
 	// ieee80211_init_state
-	state.ieee80211_state.sequence_number = 0;
-	state.ieee80211_state.fcs = 0;
+	state->ieee80211_state.sequence_number = 0;
+	state->ieee80211_state.fcs = 0;
 
-	state.next = NULL;
-	state.tx_queue_multicast = circular_buf_init(16);
-	state.dump = 0;
+	state->next = NULL;
+	state->tx_queue_multicast = circular_buf_init(16);
+	state->dump = 0;
 
-	state.awdl_state.filter_rssi = 0;
+	state->awdl_state.filter_rssi = 0;
 
-	awdl_schedule(&state);
+	awdl_schedule(state);
 
 	esp_wifi_set_promiscuous_rx_cb(&wifi_sniffer_packet_handler);
 	wifi_sniffer_set_channel(6);
@@ -316,7 +326,7 @@ void wifi_sniffer_init(struct availabeTasks *tasks)
 	//lowpan6_ble_netif->flags |= NETIF_FLAG_MLD6;
 	esp_netif_create_ip6_linklocal(lowpan6_ble_netif);
 
-    awdl_driver_handle lowpan6_ble_driver = awdl_create(&state);
+    awdl_driver_handle lowpan6_ble_driver = awdl_create(state);
     if (lowpan6_ble_driver != NULL)
     {
         ESP_ERROR_CHECK(esp_netif_attach(lowpan6_ble_netif, lowpan6_ble_driver));
@@ -344,6 +354,8 @@ void wifi_sniffer_init(struct availabeTasks *tasks)
     ESP_ERROR_CHECK(esp_netif_set_ip6_info(netif, &ip6_info));
 	*/
 	struct in6_addr ip6_addr = ether_addr_to_in6_addr((struct ether_addr *)&mac);
+
+	print_in6_addr(ip6_addr);
     ESP_ERROR_CHECK(netif_add_ip6_address(netif, (ip6_addr_t *)&ip6_addr, 0));
     esp_netif_dns_info_t dns_info;
 	memcpy(&dns_info.ip.u_addr.ip6.addr, &ip6_addr, sizeof(struct in6_addr));
@@ -362,17 +374,32 @@ void wifi_sniffer_init(struct availabeTasks *tasks)
 
     esp_log_level_set("lwip", ESP_LOG_DEBUG);
     esp_log_level_set("awdl", ESP_LOG_DEBUG);
+    esp_log_level_set("awdl_rx_data", ESP_LOG_VERBOSE);
+    esp_log_level_set("awdl_rx_action", ESP_LOG_VERBOSE);
+    esp_log_level_set("awdl_election_run", ESP_LOG_WARN);
 
 	//setup_raw_recv_callback(netif);
 	
     ESP_ERROR_CHECK( mdns_init() );
 	mdns_register_netif(lowpan6_ble_netif);
-
+	vTaskDelay(pdMS_TO_TICKS(5000));
+	const char *if_name = esp_netif_get_ifkey(lowpan6_ble_netif);
+    printf("Network interface name 1: %s\n", if_name);
+	printf("Network interface name 2: %s\n", netif->name);
+	char *name = malloc(NETIF_NAMESIZE);
+	ESP_ERROR_CHECK(esp_netif_get_netif_impl_name(lowpan6_ble_netif, name));
+	printf("Network interface name 3: %s\n", name);
     ESP_ERROR_CHECK(mdns_netif_action(lowpan6_ble_netif, MDNS_EVENT_ENABLE_IP6));
-    ESP_ERROR_CHECK(mdns_netif_action(lowpan6_ble_netif, MDNS_EVENT_ANNOUNCE_IP6));
-    ESP_ERROR_CHECK(mdns_netif_action(lowpan6_ble_netif, MDNS_EVENT_IP6_REVERSE_LOOKUP));
-	xTaskCreate(mdns_query_task, "mdns_query_task", 8096, NULL, 5, tasks->mdns);
-	tasks->mdns_enabled = true;
+    //ESP_ERROR_CHECK(mdns_netif_action(lowpan6_ble_netif, MDNS_EVENT_ANNOUNCE_IP6));
+    //ESP_ERROR_CHECK(mdns_netif_action(lowpan6_ble_netif, MDNS_EVENT_IP6_REVERSE_LOOKUP));
+
+	// //vTaskDelay(pdMS_TO_TICKS(1000));
+	// xTaskCreate(mdns_query_task, "mdns_query_task", 8096, NULL, 5, sysinfo->tasks->mdns);
+	// sysinfo->tasks->mdns_enabled = true;
+	// // mdns_hostname_set("test");
+	// // mdns_service_add("test", "_airdrop", "_tcp", 8770, NULL, 0);
+	// mdns_browse_new("_airdrop", "_tcp", mdns_service_callback);
+	state->awdl_state.peers.ether_addr_count = 0;
 } 
 
 void
@@ -397,12 +424,16 @@ void awdl_receive_frame(const uint8_t *buf, int len) {
 	struct buf *data_arr[MAX_NUM_AMPDU];
 	struct buf **data = &data_arr[0];
 	esp_log_level_set("awdl_rx_data", ESP_LOG_VERBOSE);
-	result = awdl_rx(frame, &data, &state.awdl_state);
+	result = awdl_rx(frame, &data, &state->awdl_state);
 	if (result == RX_OK) {
 		//ESP_LOGI("wifi", "awdl_receive_frame");
 	} else if (result < RX_OK) {
 		ESP_LOGW("awdl core", "unhandled frame (%d)", result);
-		state.awdl_state.stats.rx_unknown++;
+		//for (int i=0; i<len; i++) {
+		//	printf("%02X ", buf[i]);
+		//}
+		//printf("\n");
+		//>state->awdl_state.stats.rx_unknown++;
 	} else {
 		ESP_LOGE("awdl core", "awdl_receive_frame: unidentified frame %i",result);
 	}
@@ -426,7 +457,9 @@ void awdl_receive_frame(const uint8_t *buf, int len) {
 			ESP_LOGE("awdl", "Failed to get netif");
 			return;
 		}
-		esp_netif_receive(netif, packet->data, packet->len, NULL);
+		uint8_t *data = malloc(packet->len);
+		memcpy(data, packet->data, packet->len);
+		esp_netif_receive(netif, data, packet->len, NULL);
 		buf_free(*data_start);
 	}
 	// esp_netif_receive() send the data to the network stack
@@ -456,11 +489,25 @@ wifi_sniffer_packet_handler(void* buff, wifi_promiscuous_pkt_type_t type)
 	
 	const uint8_t *addr1 = wifi_pkt->hdr.addr1;
 	if (addr1[0]!=0xff) {
-		printf("ADDR1=%02x:%02x:%02x:%02x:%02x:%02x ",
+		printf("(dest) ADDR1=%02x:%02x:%02x:%02x:%02x:%02x\n",
 			addr1[0],addr1[1],addr1[2],
 			addr1[3],addr1[4],addr1[5]
 		);
 	}
-	awdl_receive_frame((const uint8_t *)buff,sizeof(wifi_pkt_rx_ctrl_t)+wifi_pkt->rx_ctrl.sig_len);
-	return;
+	// D0 08: 
+	const uint8_t *info = buff + sizeof(wifi_pkt_rx_ctrl_t); // skip 24 bytes
+	//printf("%02X, %02X\n", (info)[0], (info)[1] );
+	// D0, 00: action frame; D0, 08: data frame with qosc data retry flag
+	if (!((info)[0]==0xD0 && (info)[1]==0x00)) // filter out action packets, but not retry packets
+	{		
+		for (int i=0; i<wifi_pkt->rx_ctrl.sig_len; i++) {
+			printf("%02X ", (info)[i]);
+		}
+		printf("\n");
+	}
+	if (state->awdl_state.running) {
+		awdl_receive_frame((const uint8_t *)buff,sizeof(wifi_pkt_rx_ctrl_t)+wifi_pkt->rx_ctrl.sig_len);
+	}
 }
+
+// packet is valid until BSS ID: 00 25 00 FF 94 73

@@ -22,6 +22,8 @@
 #include "lwip/netif.h"
 #include "lwip/ip6_addr.h"
 #include "wifi/core.h"
+#include "owl/log.h"
+#include "lwip/ip.h"
 
 static err_t awdl_netif_init(struct netif* netif);
 static void awdl_netif_input(void* h, void* buffer, size_t len, void* eb);
@@ -131,7 +133,7 @@ static err_t awdl_netif_init(struct netif* netif)
     netif_set_flags(netif, NETIF_FLAG_MLD6);
     netif->linkoutput = awdl_netif_linkoutput;
 
-    ESP_LOGD(TAG, "(%s) init netif=%p", __func__, netif);
+    log_debug(TAG, "(%s) init netif=%p", __func__, netif);
 
     return ERR_OK;
 }
@@ -142,28 +144,30 @@ static err_t awdl_netif_init(struct netif* netif)
 static void awdl_netif_input(void* h, void* buffer, size_t len, void* eb)
 {
     // from wifi/etc to software netif
-    printf("awdl_netif_input\n");
-
     struct netif* netif    = (struct netif*)h; 
     esp_netif_t *esp_netif = esp_netif_get_handle_from_netif_impl(netif);
     struct pbuf *p;
 
-    ESP_LOGI(TAG, "awdl_netif_input len=%i", len);
-    p = esp_pbuf_allocate(esp_netif, buffer, len, NULL);
+    log_info("awdl_netif_input len=%i (IP payload len=%i)", len,len-40);
+    void *buff = malloc(len);
+    memcpy(buff, buffer, len);
+    free(buffer);
+    p = esp_pbuf_allocate(esp_netif, buff, len, NULL);
     for (int i = 0; i < p->len; i++)
     {
         printf("%02x ", ((uint8_t*)p->payload)[i]);
     }
     printf("\n\n");
     if (p == NULL) {
-        ESP_LOGE(TAG, "(%s) failed to allocate memory for pbuf", __func__);
-        esp_netif_free_rx_buffer(esp_netif, buffer);
+        log_error(TAG, "(%s) failed to allocate memory for pbuf", __func__);
+        esp_netif_free_rx_buffer(esp_netif, buff);
         return ESP_NETIF_OPTIONAL_RETURN_CODE(ESP_ERR_NO_MEM);
     }
     /* full packet send to tcpip_thread to process */
     // netif->input
-    if (netif->input(p, netif) != ERR_OK) {
-        ESP_LOGE(TAG,"wlanif_input: IP input error\n");
+    //if (netif->input(p, netif) != ERR_OK) {
+    if (ip_input(p, netif) != ERR_OK) {
+        log_error(TAG,"wlanif_input: IP input error\n");
         pbuf_free(p);
         return;
     }

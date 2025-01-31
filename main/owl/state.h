@@ -49,6 +49,7 @@ struct awdl_stats {
 /* Complete node state */
 struct awdl_state {
 	struct ether_addr self_address;
+	bool running;
 	char name[HOST_NAME_LENGTH_MAX + 1];
 
 	uint8_t version;

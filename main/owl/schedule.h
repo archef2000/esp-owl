@@ -26,7 +26,7 @@
 #include "peers.h"
 
 #define AWDL_UNICAST_GUARD_TU 3
-#define AWDL_MULTICAST_GUARD_TU 16
+#define AWDL_MULTICAST_GUARD_TU 4 // 16
 
 double usec_to_sec(uint64_t usec);
 
@@ -65,6 +65,10 @@ int awdl_is_multicast_eaw(const struct awdl_state *state, uint64_t now);
  * @param guard guard interval in TU
  * @return 0 if we are outside guard interval, or a positive or negative time in seconds
  */
+double awdl_inactive_in_us(const struct awdl_state *state, uint64_t now);
+
+double awdl_active_in(const struct awdl_state *state, uint64_t now);
+
 double awdl_can_send_in(const struct awdl_state *state, uint64_t now, int guard);
 
 double awdl_can_send_unicast_in(const struct awdl_state *state, const struct awdl_peer *peer, uint64_t now, int guard);

@@ -23,6 +23,7 @@
 #include "freertos/portmacro.h"
 #include "wifi/core.h"
 #include "owl/ethernet.h"
+#include "owl/log.h"
 //#include "host/ble_hs.h"
 //#include "lowpan6_ble_netif.h"
 //#include "nimble/ble.h"
@@ -57,6 +58,7 @@ struct awdl_driver
 static void awdl_free_rx_buffer(void* h, void* buffer)
 {
     ESP_LOGE(TAG, "awdl_free_rx_buffer");
+    free(buffer);
 }
 
 static esp_err_t awdl_transmit(void* h, void* buffer, size_t len)
@@ -86,12 +88,16 @@ static esp_err_t awdl_transmit(void* h, void* buffer, size_t len)
 	buf = buf_new_owned(ETHER_LENGTH+len);
 	write_ether_addr(buf, ETHER_DST_OFFSET, &dst_mac);
 	write_bytes(buf, ETHER_LENGTH, buffer, len);
-    printf("%d\n",buf_len(buf));
     if (is_multicast) {
-        printf("awdl_transmit: is_multicast len=%i\n", len);
-        for (int i = 0; i < len; i++)
-            printf("%02x ", ((uint8_t *)buffer)[i]);
-        printf("\n");
+        log_info("is_multicast len=%i", len);
+        //log_info("test");
+        if (len != 85) {
+            for (int i = 0; i < len; i++)
+                printf("%02x ", ((uint8_t *)buffer)[i]);
+            printf("\n");
+        } else {
+            printf("mdns standard query\n");
+        }
 		circular_buf_put(state->tx_queue_multicast, buf);
         esp_timer_start_once(state->timer_state.tx_mcast_timer.handle, 0*1000*1000);
 	} else { // unicast 

@@ -30,6 +30,10 @@
 #include "esp_timer.h"
 #include "esp_log.h"
 #include "lwip/inet.h"
+#include "esp_netif.h"
+#include "lwip/netif.h"
+#include "esp_netif_net_stack.h"
+#include "utils/systeminfo.h"
 #include <stdbool.h>
 
 ESP_EVENT_DEFINE_BASE(AWDL_EVENT_BASE);
@@ -87,6 +91,10 @@ void timer_init(struct timer_arg_t *timer, timer_cb_t cb, uint64_t in, bool repe
 		esp_timer_start_once(timer->handle, in);
 }
 
+void timer_stop(struct timer_arg_t *timer) {
+	esp_timer_stop(timer->handle);
+}
+
 void print_ether_addr(struct ether_addr *addr) {
 	char *ether_str = malloc(sizeof(char) * INET6_ADDRSTRLEN);
 	ether_addr_to_string(ether_str, *addr);
@@ -103,9 +111,11 @@ int awdl_send_data(const struct buf *buf, const struct io_state *io_state,
 	buf_strip(buf, ETHER_LENGTH);
 	awdl_data_len = awdl_init_full_data_frame(awdl_data, &src, &dst, buf_data(buf), buf_len(buf), awdl_state, ieee80211_state);
 	awdl_state->stats.tx_data++;
-	if (wlan_send(io_state, awdl_data, awdl_data_len) < 0) {
-		printf("awdl_send_data: wlan_send error\n");
-		return TX_FAIL;
+	if (awdl_state->running) {
+		if (wlan_send(io_state, awdl_data, awdl_data_len) < 0) {
+			printf("awdl_send_data: wlan_send error\n");
+			return TX_FAIL;
+		}
 	}
 	return TX_OK;
 
@@ -115,13 +125,15 @@ wire_error:
 
 void awdl_send_action(struct daemon_state *state, enum awdl_action_type type) {
 	int len;
-	uint8_t buf[15535]; 
+	uint8_t buf[1600]; 
 	len = awdl_init_full_action_frame(buf, &state->awdl_state, &state->ieee80211_state, type);
 	if (len < 0){
 		ESP_LOGE(TAG, "awdl_send_action awdl_init_full_action_frame error");
 		return;
 	}
-	wlan_send(&state->io, buf, len);
+	if (state->awdl_state.running) {
+		wlan_send(&state->io, buf, len);
+	}
 	state->awdl_state.stats.tx_action++;
 }
 
@@ -194,6 +206,46 @@ void ether_addr_to_string(char *buf, struct ether_addr addr) {
 	sprintf(buf, "%02x:%02x:%02x:%02x:%02x:%02x", addr.ether_addr_octet[0], addr.ether_addr_octet[1], addr.ether_addr_octet[2], addr.ether_addr_octet[3], addr.ether_addr_octet[4], addr.ether_addr_octet[5]);
 }
 
+/**
+ * Parse a MAC address string into a struct ether_addr.
+ *
+ * @param mac_str The input MAC address string, e.g., "a9:c2:3d:00:15:c7" or "a9c23d0015c7".
+ * @param ether_addr_ptr A pointer to an ether_addr pointer to store the parsed MAC address.
+ * @return 0 on success, -1 on failure.
+ */
+int parse_mac_address(const char *mac_str, struct ether_addr **ether_addr_ptr) {
+    // drop dis a9:c2:3d:00:15:c7
+    size_t len = strlen(mac_str);
+    char clean_mac[13] = {0}; // Buffer to hold the cleaned-up MAC address
+    int j = 0;
+    for (size_t i = 0; i < len && j < 12; i++) {
+        if (isxdigit((unsigned char)mac_str[i])) { // Only consider hex digits
+            clean_mac[j++] = mac_str[i];
+        }
+    }
+	log_debug("clean_mac: %s j: %d", clean_mac, j);
+	printf("awdasdsadsadawdasd");
+	log_debug("clean_mac: %s j: %d", clean_mac, j);
+    if (j != 12) {
+        return -1; // Invalid MAC address length
+    }
+
+    *ether_addr_ptr = malloc(sizeof(struct ether_addr));
+    if (!*ether_addr_ptr) {
+        return -1; // Memory allocation failure
+    }
+
+    for (int i = 0; i < 6; i++) {
+        char byte_str[3] = { clean_mac[i * 2], clean_mac[i * 2 + 1], '\0' };
+        (*ether_addr_ptr)->ether_addr_octet[i] = (uint8_t)strtol(byte_str, NULL, 16);
+    }
+
+    return 0; // Success
+}
+
+
+//void string_to_ether_addr(struct ether_addr *addr, char *buf) {
+
 void print_in6_addr(struct in6_addr addr) {
 	char *ipv6_addr = malloc(sizeof(char) * INET6_ADDRSTRLEN);
 	in6_addr_to_string(ipv6_addr, addr);
@@ -228,6 +280,7 @@ void remove_element_from_array(struct ether_addr *array, int array_length, int i
 void awdl_neighbor_add(struct awdl_peer *p, void *_daemon_state) {
 	struct daemon_state state = *((struct daemon_state *)_daemon_state);
 	state.awdl_state.peers.ether_addr_list[state.awdl_state.peers.ether_addr_count++] = p->addr;
+	log_error("awdl_neighbor_add count: %i", state.awdl_state.peers.ether_addr_count);
 	char *ipv6_addr = malloc(sizeof(char) * INET6_ADDRSTRLEN);
 	in6_addr_to_string(ipv6_addr, ether_addr_to_in6_addr((struct ether_addr *)&p->addr));
 	printf("awdl_neighbor_add: %s; ipv6_addr: %s\n", p->name, ipv6_addr);
@@ -240,9 +293,18 @@ void awdl_neighbor_remove(struct awdl_peer *p, void *_daemon_state) {
 	struct daemon_state state = *((struct daemon_state *)_daemon_state);
 	int index = find_element_in_ether_array(state.awdl_state.peers.ether_addr_list, state.awdl_state.peers.ether_addr_count, p->addr);
 	remove_element_from_array(state.awdl_state.peers.ether_addr_list, state.awdl_state.peers.ether_addr_count, index);
+	state.awdl_state.peers.ether_addr_count--;
 	printf("awdl_neighbor_remove: ");
 	printf("p->name: %s; ", p->name);
 	printf("country_code: %s\n", p->country_code);
+}
+
+void awdl_neighbors_print(void *_daemon_state) {
+	struct daemon_state state = *((struct daemon_state *)_daemon_state);
+	int i;
+	for (i = 0; i < state.awdl_state.peers.ether_addr_count; i++) {
+		printf("addr: %s\n", ether_ntoa(&state.awdl_state.peers.ether_addr_list[i]));
+	}
 }
 
 void awdl_clean_peers(struct timer_arg_t *arg) {
@@ -250,6 +312,7 @@ void awdl_clean_peers(struct timer_arg_t *arg) {
 
 	uint64_t cutoff_time;
 	struct daemon_state *state = arg->data;
+	//printf("time: %lld\n", clock_time_us());
 	cutoff_time = clock_time_us() - state->awdl_state.peers.timeout;
 	awdl_peers_remove(state->awdl_state.peers.peers, cutoff_time,
 	                  state->awdl_state.peer_remove_cb, state->awdl_state.peer_remove_cb_data);
@@ -370,4 +433,23 @@ void awdl_schedule(struct daemon_state *state) {
 	state->timer_state.tx_mcast_timer.data = (void *)state;
 	timer_init(&state->timer_state.tx_mcast_timer, awdl_send_multicast, 0, false, "tx_mcast_timer");
 
+}
+
+void awdl_disable(struct daemon_state *state) {
+	esp_netif_t *esp_netif = esp_netif_get_handle_from_ifkey("AWDL_DEF");
+    struct netif* netif = esp_netif_get_netif_impl(esp_netif);
+	if (netif == NULL) {
+		ESP_LOGE("awdl", "Failed to get netif");
+		return;
+	}
+	netif_set_down(netif);
+	netif_set_link_down(netif);
+	//esp_timer_delete(state->timer_state.chan_timer.handle);
+	//esp_timer_delete(state->timer_state.peer_timer.handle);
+	esp_timer_stop(state->timer_state.psf_timer.handle);
+	esp_timer_delete(state->timer_state.mif_timer.handle);
+	esp_timer_delete(state->timer_state.tx_timer.handle);
+	esp_timer_delete(state->timer_state.tx_mcast_timer.handle);
+	state->awdl_state.running = false;
+	log_info("AWDL disabled %d", state->awdl_state.running);
 }

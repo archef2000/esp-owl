@@ -61,6 +61,14 @@ const uint8_t *buf_data(const struct buf *buf) {
 	return buf->data;
 }
 
+const uint8_t *buf_orig(const struct buf *buf) {
+	return buf->orig;
+}
+
+int buf_orig_len(const struct buf *buf) {
+	return buf->data - buf->orig + buf->len;
+}
+
 int buf_len(const struct buf *buf) {
 	return buf->len;
 }

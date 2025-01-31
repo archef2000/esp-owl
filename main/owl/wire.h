@@ -105,6 +105,12 @@ void buf_free(const struct buf *buf);
 /** @brief Read-only access to internal bytes array. */
 const uint8_t *buf_data(const struct buf *buf);
 
+/** @brief Read-only access to original bytes array. */
+const uint8_t *buf_orig(const struct buf *buf);
+
+/** @brief Length of original bytes array. */
+int buf_orig_len(const struct buf *buf);
+
 /** @brief Length of internal bytes array. */
 int buf_len(const struct buf *buf);
 

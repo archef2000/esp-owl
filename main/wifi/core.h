@@ -42,6 +42,8 @@ void in6_addr_to_string(char *buf, struct in6_addr addr);
 
 void ether_addr_to_string(char *buf, struct ether_addr addr);
 
+int parse_mac_address(const char *mac_str, struct ether_addr **ether_addr_ptr);
+
 void print_in6_addr(struct in6_addr addr);
 
 void print_esp_ip6_addr(esp_ip6_addr_t addr);
@@ -67,6 +69,7 @@ struct timer_state {
 	struct timer_arg_t mif_timer, psf_timer, tx_timer, tx_mcast_timer, chan_timer, peer_timer;
 };
 
+// test
 struct daemon_state {
 	struct io_state io;
 	struct awdl_state awdl_state;
@@ -113,5 +116,9 @@ int awdl_send_data(const struct buf *buf, const struct io_state *io_state,
 void awdl_neighbor_add(struct awdl_peer *p, void *_io_stat);
 
 void awdl_neighbor_remove(struct awdl_peer *p, void *_io_state);
+
+void awdl_neighbors_print(void *_daemon_state);
+
+void awdl_disable(struct daemon_state *state);
 
 #endif /* OWL_CORE_H */

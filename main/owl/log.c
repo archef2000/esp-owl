@@ -43,14 +43,28 @@ void log_set_quiet(int enable) {
 
 int log_log(int level, const char *file, int line, const char *func, const char *fmt, ...) {
 	if (!L.quiet) {
-    	char buf[1024];
+    	char buf[200];
+		//char buf = &malloc(1024);
     	va_list args;
+		//if (memcmp(func,"awdl_transmit",12)==0) {
+		//	printf("%s [%s:%d] %s\n",func, file, line, fmt);
+		//	return 1;
+		//}
     	va_start(args, fmt);
 
     	vsnprintf(buf, sizeof(buf), fmt, args);
 
     	va_end(args);
-		ESP_LOG_LEVEL(level, func, "[%s:%d] %s\n", file, line, buf);
+		file += 2; // remove "./" from file path for vscode
+		if (memcmp(func,"awdl_rx_action",13)==0) {
+			return 1;
+		}
+		if (memcmp(func,"awdl_send_multicast",13)==0) {
+			return 1;
+		}
+		ESP_LOG_LEVEL(level, func, "[%s:%d] %s", file, line, buf);
+		//free(buf);
+		return 1;
 	}
 	return 1;
 }

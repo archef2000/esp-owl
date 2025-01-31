@@ -361,7 +361,7 @@ int ieee80211_add_fcs(const uint8_t *start, uint8_t *end) {
 	*(uint32_t *) end = htole32(crc);
 	return sizeof(uint32_t);
 }
-
+#include <stdio.h>
 int awdl_init_full_action_frame(uint8_t *buf, struct awdl_state *state, struct ieee80211_state *ieee80211_state,
                                 enum awdl_action_type type) {
 	uint8_t *ptr = buf;
@@ -381,12 +381,13 @@ int awdl_init_full_action_frame(uint8_t *buf, struct awdl_state *state, struct i
 	ptr += awdl_init_data_path_state_tlv(ptr, state);
 	ptr += awdl_init_version_tlv(ptr, state);
 	if (ieee80211_state->fcs)
+	{
+		printf("ieee80211_add_fcs\n");
 		ptr += ieee80211_add_fcs(buf, ptr);
+	}
 
 	return ptr - buf;
 }
-
-#include <stdio.h>
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -401,9 +402,9 @@ int awdl_init_full_data_frame(uint8_t *buf, const struct ether_addr *src, const 
 	ptr += llc_init_awdl_hdr(ptr);
 	ptr += awdl_init_data(ptr, state);
 	printf("awdl_send_multicast: can send now\n");
-	printf("Task watermark: %d\n", uxTaskGetStackHighWaterMark(NULL));
+	//printf("Task watermark: %d\n", uxTaskGetStackHighWaterMark(NULL));
 	memcpy(ptr, payload, plen);
-	printf("Task watermark: %d\n", uxTaskGetStackHighWaterMark(NULL));
+	//printf("Task watermark: %d\n", uxTaskGetStackHighWaterMark(NULL));
 	ptr += plen;
 	if (ieee80211_state->fcs) {
 		printf("ieee80211_add_fcs\n");

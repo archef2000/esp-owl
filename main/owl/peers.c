@@ -30,6 +30,7 @@
 
 void awdl_peer_state_init(struct awdl_peer_state *state) {
 	state->peers = awdl_peers_init();
+	state->ether_addr_count = 0;
 	state->timeout = PEERS_DEFAULT_TIMEOUT;
 	state->clean_interval = PEERS_DEFAULT_CLEAN_INTERVAL;
 }
@@ -127,8 +128,8 @@ enum peers_status awdl_peer_remove(awdl_peers_t peers, const struct ether_addr *
 		return PEERS_MISSING;
 	if (peer->is_valid) {
 		log_info("remove peer %s (%s)", ether_ntoa(&peer->addr), peer->name);
-		if (cb)
-			cb(peer, arg);
+		//if (cb)
+		//	cb(peer, arg);
 	}
 	free(peer);
 	return PEERS_OK;
@@ -175,11 +176,12 @@ void awdl_peers_remove(awdl_peers_t peers, uint64_t before, awdl_peer_cb cb, voi
 	struct awdl_peer *peer;
 	
 	while (hashmap_it_next(it, NULL, (any_t *) &peer) == MAP_OK) {
+		printf("%lld:%lld %d\n", peer->last_update, before,(peer->last_update < before));
 		if (peer->last_update < before) {
 			if (peer->is_valid) {
 				log_info("remove peer %s (%s)", ether_ntoa(&peer->addr), peer->name);
-				if (cb)
-					cb(peer, arg);
+				//if (cb)
+				//	cb(peer, arg);
 			}
 			hashmap_it_remove(it);
 			free(peer);

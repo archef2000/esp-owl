@@ -23,8 +23,8 @@
      ESP_COMPILER_DESIGNATED_INIT_AGGREGATE_TYPE_EMPTY(ip_info) \
      .get_ip_event  = 0,                                        \
      .lost_ip_event = 0,                                        \
-     .if_key        = "LOWPAN6_BLE_DEF",                        \
-     .if_desc       = "lowpan6_ble",                            \
+     .if_key        = "AWDL_DEF",                        \
+     .if_desc       = "awdl",                            \
      .route_prio    = 16,                                       \
 }
 #endif

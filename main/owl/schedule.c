@@ -18,7 +18,7 @@
  */
 
 #include "schedule.h"
-
+#include <stdio.h>
 double usec_to_sec(uint64_t usec) {
 	return usec / 1000000.;
 }
@@ -52,6 +52,21 @@ double awdl_can_send_in(const struct awdl_state *state, uint64_t now, int guard)
 
 	return (next_aw < _guard) ? -usec_to_sec(_guard - next_aw) : ((eaw - next_aw < _guard) ? usec_to_sec(
 		(_guard - (eaw - next_aw))) : 0);
+}
+// when there is no eaw between the aw there will be a 3*16TU window (=3*16*1024us=49ms)
+double awdl_inactive_in_us(const struct awdl_state *state, uint64_t now) {
+	uint64_t next_aw = awdl_sync_next_aw_us(now, &state->sync);
+	uint64_t eaw_len = ieee80211_tu_to_usec(state->sync.presence_mode * state->sync.aw_period);
+	uint64_t inactive_period = next_aw + eaw_len;
+	printf("eaw_len: %llu\n", eaw_len); // 4*16*1024us = 64ms
+	printf("next_aw: %llu\n", next_aw);
+	printf("inactive_period: %llu\n", inactive_period);
+	printf("now: %llu\n", now);
+	return inactive_period;
+}
+
+double awdl_active_in(const struct awdl_state *state, uint64_t now) {
+	return awdl_sync_next_aw_us(now, &state->sync);
 }
 
 double awdl_can_send_unicast_in(const struct awdl_state *state, const struct awdl_peer *peer, uint64_t now, int guard) {

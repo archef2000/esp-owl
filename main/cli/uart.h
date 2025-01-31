@@ -1,3 +1,3 @@
-#include "cli/tasks.h"
+#include "utils/systeminfo.h"
 
-void init_uart(struct availabeTasks *tasks);
+void init_uart(struct systemInfo *sysinfo);
