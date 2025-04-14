@@ -380,6 +380,7 @@ void wifi_sniffer_init(struct systemInfo *sysinfo)
 
 	//setup_raw_recv_callback(netif);
 	
+	return;
     ESP_ERROR_CHECK( mdns_init() );
 	mdns_register_netif(lowpan6_ble_netif);
 	vTaskDelay(pdMS_TO_TICKS(5000));
@@ -483,6 +484,14 @@ wifi_sniffer_packet_handler(void* buff, wifi_promiscuous_pkt_type_t type)
 	const wifi_pkt_t *wifi_pkt = (wifi_pkt_t *)buff;
 	uint8_t awdl_data_mac[6] = { 0x00, 0x25, 0x00, 0xff, 0x94, 0x73 };
 	if (memcmp(wifi_pkt->hdr.addr3,awdl_data_mac, sizeof(struct ether_addr))!=0) {
+		if (wifi_pkt->rx_ctrl.rssi > -40) {
+			const uint8_t *info = buff + sizeof(wifi_pkt_rx_ctrl_t); // skip 24 bytes
+			printf("%02X, %02X\n ; rssi: %i\n", info[0], info[1], wifi_pkt->rx_ctrl.rssi);
+			for (int i=0; i<10; i++) {
+				printf("%02X ", (info)[i]);
+			}
+			printf("\n");
+		}
 		return;
 	}
 	//printf("subtype: %i\n", ipkt->payload[06]);
@@ -498,13 +507,20 @@ wifi_sniffer_packet_handler(void* buff, wifi_promiscuous_pkt_type_t type)
 	const uint8_t *info = buff + sizeof(wifi_pkt_rx_ctrl_t); // skip 24 bytes
 	//printf("%02X, %02X\n", (info)[0], (info)[1] );
 	// D0, 00: action frame; D0, 08: data frame with qosc data retry flag
-	if (!((info)[0]==0xD0 && (info)[1]==0x00)) // filter out action packets, but not retry packets
-	{		
+	printf("%02X, %02X\n", (info)[0], (info)[1]);
+	for (int i=0; i<10; i++) {
+		printf("%02X ", (info)[i]);
+	}
+	printf("\n");
+	if ((!((info)[0]==0xD0 && (info)[1]==0x00)) || ((info)[0] == 0x80)) // filter out action packets, but not retry packets
+	{
+		printf("packet: \n");
 		for (int i=0; i<wifi_pkt->rx_ctrl.sig_len; i++) {
 			printf("%02X ", (info)[i]);
 		}
 		printf("\n");
 	}
+	return;
 	if (state->awdl_state.running) {
 		awdl_receive_frame((const uint8_t *)buff,sizeof(wifi_pkt_rx_ctrl_t)+wifi_pkt->rx_ctrl.sig_len);
 	}

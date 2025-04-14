@@ -13,7 +13,7 @@ dependencies:
   idf:
     source:
       type: idf
-    version: 5.2.1
+    version: 5.4.1
   protocol_examples_common:
     dependencies: []
     source:
@@ -24,5 +24,5 @@ direct_dependencies:
 - espressif/mdns
 - protocol_examples_common
 manifest_hash: d8f19ffde72ce77cdd426260e150269767205359e7d7ff3b23d75197747bfcb4
-target: esp32c6
+target: esp32s3
 version: 2.0.0
