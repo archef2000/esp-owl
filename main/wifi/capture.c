@@ -482,19 +482,39 @@ wifi_sniffer_packet_handler(void* buff, wifi_promiscuous_pkt_type_t type)
 	}
 	
 	const wifi_pkt_t *wifi_pkt = (wifi_pkt_t *)buff;
-	uint8_t awdl_data_mac[6] = { 0x00, 0x25, 0x00, 0xff, 0x94, 0x73 };
-	if (memcmp(wifi_pkt->hdr.addr3,awdl_data_mac, sizeof(struct ether_addr))!=0) {
-		if (wifi_pkt->rx_ctrl.rssi > -40) {
-			const uint8_t *info = buff + sizeof(wifi_pkt_rx_ctrl_t); // skip 24 bytes
-			printf("%02X, %02X\n ; rssi: %i\n", info[0], info[1], wifi_pkt->rx_ctrl.rssi);
-			for (int i=0; i<10; i++) {
-				printf("%02X ", (info)[i]);
-			}
-			printf("\n");
-		}
+	if (wifi_pkt->rx_ctrl.rssi < -30) {
 		return;
 	}
-	//printf("subtype: %i\n", ipkt->payload[06]);
+	if (wifi_pkt->hdr.frame_control==0x00D0) { // D0 00
+		return;
+	}
+	uint8_t frame_type = (wifi_pkt->hdr.frame_control >> 2) & 0x3;      // Bits 2–3 (2 bits) 
+	uint8_t subtype = (wifi_pkt->hdr.frame_control >> 4) & 0xF;   // Bits 4–7 (4 bits)
+	if (frame_type == 1 && subtype==12) { // Clear-to-send frame 
+		return;
+	}
+	ESP_LOGI("sniffer","type: %i; subtype: %i; rssi %i; len %i", frame_type, subtype, wifi_pkt->rx_ctrl.rssi, wifi_pkt->rx_ctrl.sig_len - 4);
+	if (frame_type == 2 && subtype == 8) {
+		printf("QoS Data frame captured!\n");
+	}
+	if (wifi_pkt->rx_ctrl.rx_state != 0) {
+		ESP_LOGE("sniffer","rx_state: %i\n", wifi_pkt->rx_ctrl.rx_state);
+	}
+	const uint8_t *info = buff + sizeof(wifi_pkt_rx_ctrl_t); // include frame_control from hdr
+	uint16_t max_size = wifi_pkt->rx_ctrl.sig_len -4;
+	if (max_size > 30) {
+		max_size = 30;
+	}
+	for (int i=0; i<max_size; i++) {
+		printf("%02X ", (info)[i]);
+	}
+	printf("\n");
+	
+	/*
+	uint8_t awdl_data_mac[6] = { 0x00, 0x25, 0x00, 0xff, 0x94, 0x73 };
+	if (memcmp(wifi_pkt->hdr.addr3,awdl_data_mac, sizeof(struct ether_addr))!=0) {
+		return;
+	}
 	
 	const uint8_t *addr1 = wifi_pkt->hdr.addr1;
 	if (addr1[0]!=0xff) {
@@ -524,6 +544,7 @@ wifi_sniffer_packet_handler(void* buff, wifi_promiscuous_pkt_type_t type)
 	if (state->awdl_state.running) {
 		awdl_receive_frame((const uint8_t *)buff,sizeof(wifi_pkt_rx_ctrl_t)+wifi_pkt->rx_ctrl.sig_len);
 	}
+	*/
 }
 
 // packet is valid until BSS ID: 00 25 00 FF 94 73
