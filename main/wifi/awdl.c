@@ -63,6 +63,7 @@ static void awdl_free_rx_buffer(void* h, void* buffer)
 
 static esp_err_t awdl_transmit(void* h, void* buffer, size_t len)
 {
+    printf("\n\n\n\n\n\n\n\n data transmit\n");
     // send data over the network interface
     struct awdl_driver* driver = (struct awdl_driver*)h;
     struct daemon_state *state = (struct daemon_state *)driver->userdata;

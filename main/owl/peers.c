@@ -83,6 +83,7 @@ struct awdl_peer *awdl_peer_new(const struct ether_addr *addr) {
 
 enum peers_status
 awdl_peer_add(awdl_peers_t peers, const struct ether_addr *_addr, uint64_t now, awdl_peer_cb cb, void *arg) {
+	//printf("awdl_peer_add: getting peer %s\n", ether_ntoa(_addr));
 	int status, result;
 	map_t map = (map_t) peers;
 	mkey_t addr = (mkey_t) _addr;
@@ -176,7 +177,7 @@ void awdl_peers_remove(awdl_peers_t peers, uint64_t before, awdl_peer_cb cb, voi
 	struct awdl_peer *peer;
 	
 	while (hashmap_it_next(it, NULL, (any_t *) &peer) == MAP_OK) {
-		printf("%lld:%lld %d\n", peer->last_update, before,(peer->last_update < before));
+		printf("%s: %lld:%lld %d\n", ether_ntoa(&peer->addr), peer->last_update, before,(peer->last_update < before));
 		if (peer->last_update < before) {
 			if (peer->is_valid) {
 				log_info("remove peer %s (%s)", ether_ntoa(&peer->addr), peer->name);

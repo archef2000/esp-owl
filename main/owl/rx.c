@@ -439,7 +439,9 @@ int awdl_rx(const struct buf *frame, struct buf ***data_frame, struct awdl_state
 	signed char rssi;
 	uint64_t tsft;
 
-	tsft = clock_time_us(); /* TODO Radiotap TSFT is more accurate but then need to access TSF in clock_time_us() use timestamp from wifi_pkt_rx_ctrl_t */
+	tsft = clock_time_us(); // TODO Radiotap TSFT is more accurate but then need to access TSF in clock_time_us() use timestamp from wifi_pkt_rx_ctrl_t
+	//ESP_LOGE("awdl_rx", "time2 %lu\n",(uint32_t )tsft);
+	
 	READ_U8(frame, 0, (unsigned char *)&rssi);
 	BUF_STRIP(frame, sizeof(wifi_pkt_rx_ctrl_t));
 
@@ -470,7 +472,8 @@ int awdl_rx(const struct buf *frame, struct buf ***data_frame, struct awdl_state
 	// fc & (0x000c|0x00f0)
 	switch (fc & (IEEE80211_FCTL_FTYPE | IEEE80211_FCTL_STYPE | IEEE80211_FCTL_RETRY)) {
 		case IEEE80211_FTYPE_MGMT | IEEE80211_STYPE_ACTION:
-			log_error("action frame %i",seq_num); // real fc: 00d0, switch: 00d0
+			//log_error("action frame %i %s",seq_num, ether_ntoa(from)); // real fc: 00d0, switch: 00d0
+			
 			int err = awdl_rx_action(frame, rssi, tsft, from, to, state);
 			if (err == RX_IGNORE) {
 				//for (int i=0; i<buf_len(frame); i++) {

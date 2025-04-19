@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <string.h>
+#include "esp_log_level.h"
 #include "nvs_flash.h"
 #include "nvs.h"
 #include "esp_system.h"

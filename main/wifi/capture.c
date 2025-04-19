@@ -4,6 +4,8 @@
  * WiFi Sniffer.
  */
 
+#include "esp_log_level.h"
+#include "esp_wifi_types_generic.h"
 #include "freertos/FreeRTOS.h"
 #include "esp_wifi.h"
 #include "esp_wifi_types.h"
@@ -211,7 +213,6 @@ static void query_mdns_service(const char *service_name, const char *proto)
         ESP_LOGW(TAG, "No results found!");
         return;
     }
-	return;
 	ESP_LOGE("awdl", "mdns_print_results\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n");
     mdns_print_results(results);
 
@@ -380,7 +381,7 @@ void wifi_sniffer_init(struct systemInfo *sysinfo)
 
 	//setup_raw_recv_callback(netif);
 	
-	return;
+	//return;
     ESP_ERROR_CHECK( mdns_init() );
 	mdns_register_netif(lowpan6_ble_netif);
 	vTaskDelay(pdMS_TO_TICKS(5000));
@@ -401,12 +402,12 @@ void wifi_sniffer_init(struct systemInfo *sysinfo)
 	// // mdns_service_add("test", "_airdrop", "_tcp", 8770, NULL, 0);
 	// mdns_browse_new("_airdrop", "_tcp", mdns_service_callback);
 	state->awdl_state.peers.ether_addr_count = 0;
+	esp_log_level_set("awdl_rx_data", ESP_LOG_VERBOSE);
 } 
 
 void
 wifi_sniffer_set_channel(uint8_t channel)
 {
-	
 	esp_wifi_set_channel(channel, WIFI_SECOND_CHAN_NONE);
 }
 
@@ -424,7 +425,6 @@ void awdl_receive_frame(const uint8_t *buf, int len) {
 	const struct buf *frame = buf_new_const(buf, len);
 	struct buf *data_arr[MAX_NUM_AMPDU];
 	struct buf **data = &data_arr[0];
-	esp_log_level_set("awdl_rx_data", ESP_LOG_VERBOSE);
 	result = awdl_rx(frame, &data, &state->awdl_state);
 	if (result == RX_OK) {
 		//ESP_LOGI("wifi", "awdl_receive_frame");
@@ -480,41 +480,20 @@ wifi_sniffer_packet_handler(void* buff, wifi_promiscuous_pkt_type_t type)
 		printf("Unknown type %d\n", type);
 		return;
 	}
-	
+	if (type == WIFI_PKT_MISC) {
+		printf("Unknown type %d\n", type);
+		return;
+	}
 	const wifi_pkt_t *wifi_pkt = (wifi_pkt_t *)buff;
-	if (wifi_pkt->rx_ctrl.rssi < -30) {
+	if (wifi_pkt->rx_ctrl.rssi < -50) {
 		return;
-	}
-	if (wifi_pkt->hdr.frame_control==0x00D0) { // D0 00
-		return;
-	}
-	uint8_t frame_type = (wifi_pkt->hdr.frame_control >> 2) & 0x3;      // Bits 2–3 (2 bits) 
-	uint8_t subtype = (wifi_pkt->hdr.frame_control >> 4) & 0xF;   // Bits 4–7 (4 bits)
-	if (frame_type == 1 && subtype==12) { // Clear-to-send frame 
-		return;
-	}
-	ESP_LOGI("sniffer","type: %i; subtype: %i; rssi %i; len %i", frame_type, subtype, wifi_pkt->rx_ctrl.rssi, wifi_pkt->rx_ctrl.sig_len - 4);
-	if (frame_type == 2 && subtype == 8) {
-		printf("QoS Data frame captured!\n");
-	}
-	if (wifi_pkt->rx_ctrl.rx_state != 0) {
-		ESP_LOGE("sniffer","rx_state: %i\n", wifi_pkt->rx_ctrl.rx_state);
-	}
-	const uint8_t *info = buff + sizeof(wifi_pkt_rx_ctrl_t); // include frame_control from hdr
-	uint16_t max_size = wifi_pkt->rx_ctrl.sig_len -4;
-	if (max_size > 30) {
-		max_size = 30;
-	}
-	for (int i=0; i<max_size; i++) {
-		printf("%02X ", (info)[i]);
-	}
-	printf("\n");
-	
-	/*
+	}	
 	uint8_t awdl_data_mac[6] = { 0x00, 0x25, 0x00, 0xff, 0x94, 0x73 };
 	if (memcmp(wifi_pkt->hdr.addr3,awdl_data_mac, sizeof(struct ether_addr))!=0) {
 		return;
 	}
+	//printf("time  %lu\n",(uint32_t )wifi_pkt->rx_ctrl.timestamp);
+	awdl_receive_frame((const uint8_t *)buff,sizeof(wifi_pkt_rx_ctrl_t)+wifi_pkt->rx_ctrl.sig_len);
 	
 	const uint8_t *addr1 = wifi_pkt->hdr.addr1;
 	if (addr1[0]!=0xff) {
@@ -523,16 +502,41 @@ wifi_sniffer_packet_handler(void* buff, wifi_promiscuous_pkt_type_t type)
 			addr1[3],addr1[4],addr1[5]
 		);
 	}
+	return;
+
+	uint8_t frame_type = (wifi_pkt->hdr.frame_control >> 2) & 0x3;      // Bits 2–3 (2 bits) 
+	uint8_t subtype = (wifi_pkt->hdr.frame_control >> 4) & 0xF;   // Bits 4–7 (4 bits)
+	if (frame_type == 1 && subtype==12) { // Clear-to-send frame 
+		return;
+	}
+	
+	const uint8_t *info = buff + sizeof(wifi_pkt_rx_ctrl_t); // include frame_control from hdr
+	if (wifi_pkt->hdr.frame_control!=0x00D0) { // D0 00
+		ESP_LOGI("sniffer","type: %i; subtype: %i; rssi %i; len %i", frame_type, subtype, wifi_pkt->rx_ctrl.rssi, wifi_pkt->rx_ctrl.sig_len - 4);
+		if (frame_type == 2 && subtype == 8) {
+			printf("QoS Data frame captured!\n");
+		}
+		if (wifi_pkt->rx_ctrl.rx_state != 0) {
+			ESP_LOGE("sniffer","rx_state: %i\n", wifi_pkt->rx_ctrl.rx_state);
+		}
+		uint16_t max_size = wifi_pkt->rx_ctrl.sig_len -4;
+		if (max_size > 30) {
+			max_size = 30;
+		}
+		for (int i=0; i<max_size; i++) {
+			printf("%02X ", (info)[i]);
+		}
+		printf("\n");
+	}
+
 	// D0 08: 
-	const uint8_t *info = buff + sizeof(wifi_pkt_rx_ctrl_t); // skip 24 bytes
-	//printf("%02X, %02X\n", (info)[0], (info)[1] );
 	// D0, 00: action frame; D0, 08: data frame with qosc data retry flag
 	printf("%02X, %02X\n", (info)[0], (info)[1]);
 	for (int i=0; i<10; i++) {
 		printf("%02X ", (info)[i]);
 	}
 	printf("\n");
-	if ((!((info)[0]==0xD0 && (info)[1]==0x00)) || ((info)[0] == 0x80)) // filter out action packets, but not retry packets
+	if ((!((info)[0]==0xD0 && (info[1] == 0x00 || info[1] == 0x10))) || ((info)[0] == 0x80)) // filter out action packets, but not retry packets
 	{
 		printf("packet: \n");
 		for (int i=0; i<wifi_pkt->rx_ctrl.sig_len; i++) {
@@ -540,11 +544,6 @@ wifi_sniffer_packet_handler(void* buff, wifi_promiscuous_pkt_type_t type)
 		}
 		printf("\n");
 	}
-	return;
-	if (state->awdl_state.running) {
-		awdl_receive_frame((const uint8_t *)buff,sizeof(wifi_pkt_rx_ctrl_t)+wifi_pkt->rx_ctrl.sig_len);
-	}
-	*/
 }
 
 // packet is valid until BSS ID: 00 25 00 FF 94 73

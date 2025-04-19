@@ -17,14 +17,25 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include "esp_log_timestamp.h"
 #include "esp_timer.h"
 #include "esp_sntp.h"
 
+#include <complex.h>
+#include <stdio.h>
+#include <sys/types.h>
 #include <time.h>
 #include <string.h>
 
 #include "version.h"
 #include "state.h"
+
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "esp_cpu.h" // for esp_cpu_get_cycle_count()
+#include "esp_compiler.h"
+#include "esp_log_timestamp.h"
+#include "sdkconfig.h"
 
 #define ETHER_BROADCAST (struct ether_addr) {{ 0xff, 0xff, 0xff, 0xff, 0xff, 0xff }}
 #define PSF_INTERVAL_MASTER_TU 110
@@ -94,9 +105,42 @@ unsigned int ieee80211_state_next_sequence_number(struct ieee80211_state *state)
 	return seq;
 };
 
+/* FIXME: define an API for getting the timestamp in soc/hal IDF-2351 */
+uint32_t esp_log_early_timestamp_us(void)
+{
+#if CONFIG_IDF_TARGET_ESP32
+    /* ESP32 ROM stores separate clock rate values for each CPU, but we want the PRO CPU value always */
+    extern uint32_t g_ticks_per_us_pro;
+    return esp_cpu_get_cycle_count() / g_ticks_per_us_pro;
+#else
+    return esp_cpu_get_cycle_count() / esp_rom_get_cpu_ticks_per_us();
+#endif
+}
+
+uint32_t esp_log_timestamp_us(void)
+{
+    if (unlikely(xTaskGetSchedulerState() == taskSCHEDULER_NOT_STARTED)) {
+        return esp_log_early_timestamp_us();
+    }
+    static uint32_t base = 0;
+    if (base == 0 && xPortGetCoreID() == 0) {
+        base = esp_log_early_timestamp_us();
+    }
+    TickType_t tick_count = xPortInIsrContext() ? xTaskGetTickCountFromISR() : xTaskGetTickCount();
+    return base + tick_count * (1000000 / configTICK_RATE_HZ) - 20000;
+}
+
+
 uint64_t clock_time_us() {
-    struct timespec tv_now;
+	struct timespec tv_now;
     clock_gettime(CLOCK_REALTIME, &tv_now);
     int64_t now_us = (int64_t)tv_now.tv_sec * 1000000L + (int64_t)tv_now.tv_nsec / 1000;
-    return now_us;
+	return now_us;
+	/*
+	
+	printf("clock_time_us: %llu\n", now_us);
+	printf("%llu\n",now_us);
+	*/
+	//printf("esp_log_timestamp_us: %lu \n", esp_log_timestamp_us());
+	return esp_log_timestamp_us();
 }

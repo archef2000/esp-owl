@@ -15,6 +15,7 @@
 #include "esp_wifi_types.h"
 #include "nvs_flash.h"
 #include "esp_private/wifi.h"
+#include "owl/state.h"
 
 void send_test() {
 	nvs_flash_init();
@@ -44,6 +45,7 @@ void send_test() {
 
 void app_main(void)
 {
+    clock_time_us();
     struct systemInfo sysinfo;
     sysinfo.tasks = malloc(sizeof(struct systemInfo));
     sysinfo.awdl = malloc(sizeof(struct daemon_state));
@@ -53,8 +55,8 @@ void app_main(void)
     
     //send_test();
     
-    //init_uart(&sysinfo);
-    //init_coex(&sysinfo);
+    init_uart(&sysinfo);
+    init_coex(&sysinfo);
     // irgentd wo den pointer überschrieben
     //xTaskCreate(init_uart, "init_uart", 8072, &tasks, 10, NULL);
     //esp_log_set_vprintf(esp_log_default_vprintf);
